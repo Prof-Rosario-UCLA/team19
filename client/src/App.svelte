@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   // Simple counter to test reactivity
   let count = 0;
 
