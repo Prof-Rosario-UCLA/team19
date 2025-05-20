@@ -58,3 +58,7 @@ coverage/
 
 # Package-lock.jsons
 **/package-lock.json
+
+# Svelte build output
+/server/public/*
+!/server/public/.gitkeep
