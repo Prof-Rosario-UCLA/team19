@@ -12,8 +12,7 @@
     "test:unit": "mocha test/unit",
     "test:integration": "mocha test/integration",
     "test:infra": "mocha test/infra.test.js",
-    "test:ci": "nyc --reporter=lcov mocha && codecov",
-    "integration": ""
+    "test:ci": "nyc --reporter=lcov mocha && codecov"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.8.0",
