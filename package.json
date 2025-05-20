@@ -8,8 +8,10 @@
     "dev:server": "cd server && npm run dev",
     "start": "cd server && npm start",
     "test": "mocha",
-    "test:watch": "mocha --watch",
     "test:coverage": "nyc mocha",
+    "test:unit": "mocha test/unit",
+    "test:integration": "mocha test/integration",
+    "test:infra": "mocha test/infra.test.js",
     "test:ci": "nyc --reporter=lcov mocha && codecov",
     "integration": ""
   },
