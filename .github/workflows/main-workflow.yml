@@ -1,0 +1,84 @@
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    branches: [ main, nightly ]
+  schedule:
+    - cron: '0 0 * * *'
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    if: (github.event_name == 'pull_request' && github.base_ref == 'nightly') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: |
+          npm install
+          cd server
+          npm install
+          cd ../client
+          npm install
+
+      - name: Build
+        run: |
+          node build.js
+
+      - name: Run unit tests
+        run: |
+          npm run test:unit
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+  nightly-integration:
+    needs: build-and-test
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: nightly
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Run integration tests
+        run: |
+          npm run test:integration
+
+      - name: Merge to main
+        if: success()
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          git fetch origin main
+          git checkout main
+          git merge --no-ff nightly -m "Auto-merge nightly to main"
+          git push origin main
+
+  deploy-production:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Deploy to production
+        run: |
+          # TODO add production deployment commands for GKE
