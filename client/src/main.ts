@@ -9,10 +9,7 @@ if (!target) {
 }
 
 const app = new App({
-  target,
-  props: {
-
-  }
+  target
 });
 
 export default app;
