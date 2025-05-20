@@ -35,9 +35,13 @@ describe('Testing Infrastructure', () => {
         });
 
         it('supports mocks', () => {
-            const mock = sinon.mock();
-            mock.once().returns(true);
-            expect(mock()).to.be.true;
+            const obj = {
+                method: function() { return 'original'; }
+            };
+            const mock = sinon.mock(obj);
+            mock.expects('method').once().returns('mocked');
+            expect(obj.method()).to.equal('mocked');
+            mock.verify();
         });
 
         it('supports method replacement', () => {
