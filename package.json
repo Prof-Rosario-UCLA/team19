@@ -6,6 +6,7 @@
     "build": "node build.js",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
-    "start": "cd server && npm start"
+    "start": "cd server && npm start",
+    "test": ""
   }
 }
