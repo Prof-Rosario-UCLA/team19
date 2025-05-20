@@ -16,6 +16,7 @@ jobs:
 
       - name: Set up environment
         run: |
+          npm install
           cd server
           npm install
           cd ../client
