@@ -27,7 +27,7 @@ jobs:
 
       - name: Run tests
         run: |
-          npm run test
+          npm run test:unit
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -52,7 +52,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          npm run integration
+          npm run test:integration
 
       - name: Merge to main if tests pass
         if: success()
