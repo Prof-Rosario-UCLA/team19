@@ -7,7 +7,23 @@
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
     "start": "cd server && npm start",
-    "test": "",
-    "integration": ""
+    "test": "mocha",
+    "test:coverage": "nyc mocha",
+    "test:unit": "mocha test/unit",
+    "test:integration": "mocha test/integration",
+    "test:infra": "mocha test/infra.test.js",
+    "test:ci": "nyc --reporter=lcov mocha && codecov"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^9.8.0",
+    "@types/chai": "^5.2.2",
+    "@types/mocha": "^10.0.10",
+    "@types/sinon": "^17.0.4",
+    "chai": "^5.2.0",
+    "mocha": "^11.4.0",
+    "nyc": "^17.1.0",
+    "sinon": "^20.0.0",
+    "sinon-chai": "^4.0.0",
+    "ts-node": "^10.9.2"
   }
 }
