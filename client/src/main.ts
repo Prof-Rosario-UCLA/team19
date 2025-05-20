@@ -1,15 +1,13 @@
 import './app.css';
 import App from './App.svelte';
 
-// Ensure target is not null
-const target = document.getElementById('app');
+import { mount } from 'svelte';
 
+const target = document.getElementById('app');
 if (!target) {
   throw new Error("Target element '#app' not found.");
 }
 
-const app = new App({
-  target
-});
+const app = mount(App, { target });
 
 export default app;
