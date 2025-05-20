@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Hand from './Hand.svelte';
+  import Hand from '../cards/Hand.svelte';
   import type { CardType } from '../../lib/types';
   
   export let name: string;
