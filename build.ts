@@ -10,7 +10,7 @@ const rootDir = __dirname;
 console.log('Building client and server...');
 
 // Build client
-console.log('\nBuilding client');
+console.log('\nBuilding client...');
 process.chdir(join(rootDir, 'client'));
 execSync('npm run build', { stdio: 'inherit' });
 
