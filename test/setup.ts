@@ -1,12 +1,13 @@
-import chai from 'chai';
-import sinon from 'sinon';
+import * as chai from 'chai';
+import * as sinon from 'sinon';
 import sinonChai from 'sinon-chai';
 import { faker } from '@faker-js/faker';
 
+const { expect } = chai;
+
 chai.use(sinonChai);
 
-export const expect = chai.expect;
-export { sinon, faker };
+export { expect, sinon, faker };
 
 afterEach(() => {
     sinon.restore();

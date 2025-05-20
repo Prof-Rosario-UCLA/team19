@@ -11,7 +11,7 @@
     "test:coverage": "nyc mocha",
     "test:unit": "mocha test/unit",
     "test:integration": "mocha test/integration",
-    "test:infra": "mocha test/infra.test.js",
+    "test:infra": "mocha test/infra.test.ts",
     "test:ci": "nyc --reporter=lcov mocha && codecov"
   },
   "devDependencies": {
