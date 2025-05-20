@@ -109,6 +109,14 @@ Our repository uses the following branch structure:
 
 6. **Nightly integration** runs at midnight, and if all tests pass, nightly is automatically merged into main
 
+### Unit Testing
+
+To use our testing infrastructure, run any of the following commands:
+- `npm run test` to run all tests, including unit, integration and infrastructure
+- `npm run test:unit` to run unit tests only
+- `npm run test:integration` to run integration tests only
+- `npm run test:coverage` to run all tests alongside nyc code coverage results
+
 ### CI/CD Pipeline
 
 Our project uses GitHub Actions for continuous integration and deployment:
