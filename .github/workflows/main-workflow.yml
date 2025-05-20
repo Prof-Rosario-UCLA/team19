@@ -15,6 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+
       - name: Set up environment
         run: |
           npm install
@@ -25,7 +30,7 @@ jobs:
 
       - name: Build
         run: |
-          node build.js
+          node --loader ts-node/esm build.ts
 
       - name: Run unit tests
         run: |
@@ -35,7 +40,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: dist/
+          path: |
+            server/dist/
+            server/public/
+            client/dist/
 
   nightly-integration:
     needs: build-and-test
