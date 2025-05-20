@@ -10,7 +10,7 @@ const rootDir = __dirname;
 console.log('Building client and server...');
 
 // Build client
-console.log('\nBuilding client...');
+console.log('\nBuilding client');
 process.chdir(join(rootDir, 'client'));
 execSync('npm run build', { stdio: 'inherit' });
 
@@ -27,7 +27,7 @@ if (!existsSync(serverPublicDir)) {
 }
 
 // Copy client build to server public directory
-console.log('\nCopying client build to server...');
+console.log('\nCopying client build to server.');
 const clientBuildDir = join(rootDir, 'client', 'dist');
 cpSync(clientBuildDir, serverPublicDir, { recursive: true });
 
@@ -36,4 +36,4 @@ console.log('\nBuilding server...');
 process.chdir(join(rootDir, 'server'));
 execSync('npm run build', { stdio: 'inherit' })
 
-console.log('\nBuild complete!');
+console.log('\nBuild complete');
