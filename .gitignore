@@ -55,3 +55,6 @@ coverage/
 
 # NYC
 /.nyc_output
+
+# Package-lock.jsons
+**/package-lock.json
