@@ -3,6 +3,7 @@
   
   // Import components
   import Card from './cards/Card.svelte';
+  import Hand from './cards/Hand.svelte'
   import Player from './players/Player.svelte';
   import Table from './game/Table.svelte';
   import ScoreBoard from './game/ScoreBoard.svelte';
@@ -237,7 +238,7 @@
         <div class="order-1">
           <Player 
             name={players[2]} 
-            isHuman={false} 
+            isCurrentUser={false} 
             cards={hands[players[2]] || []} 
             score={scores[players[2]] || 0}
             isCurrentPlayer={currentPlayerIndex === 2 && !passingPhase}
@@ -250,7 +251,7 @@
           <div class="w-1/4">
             <Player 
               name={players[1]} 
-              isHuman={false} 
+              isCurrentUser={false} 
               cards={hands[players[1]] || []} 
               score={scores[players[1]] || 0}
               isCurrentPlayer={currentPlayerIndex === 1 && !passingPhase}
@@ -266,7 +267,7 @@
           <div class="w-1/4">
             <Player 
               name={players[3]} 
-              isHuman={false} 
+              isCurrentUser={false} 
               cards={hands[players[3]] || []} 
               score={scores[players[3]] || 0}
               isCurrentPlayer={currentPlayerIndex === 3 && !passingPhase}
@@ -282,40 +283,19 @@
               <span class="font-medium text-gray-600">Score: {scores[players[0]] || 0}</span>
             </div>
             
-            <div class="relative min-h-[150px] flex items-center justify-center">
-              {#if hands[players[0]] && hands[players[0]].length > 0}
-                <div class="flex">
-                  {#each hands[players[0]] as card, index}
-                    <div 
-                      class="card-wrapper transform transition-all duration-200" 
-                      style="margin-left: {index === 0 ? 0 : '-30px'}; z-index: {index};"
-                    >
-                      <div 
-                        class="hover:-translate-y-4 {isCardSelected(players[0], card) ? '-translate-y-6' : ''} 
-                               transition-transform duration-200 cursor-pointer"
-                        on:click={() => {
-                          if (passingPhase) {
-                            handleCardSelect({ detail: { player: players[0], card } });
-                          } else if (currentPlayerIndex === 0) {
-                            handlePlayCard({ detail: { player: players[0], card } });
-                          }
-                        }}
-                      >
-                        <Card 
-                          suit={card.suit} 
-                          rank={card.rank} 
-                          faceUp={true}
-                          selectable={passingPhase || currentPlayerIndex === 0}
-                          selected={isCardSelected(players[0], card)}
-                        />
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {:else}
-                <p class="text-gray-500">No cards</p>
-              {/if}
-            </div>
+            <Hand 
+            cards={hands[players[0]] || []}
+            playable={currentPlayerIndex === 0 && !passingPhase}
+            isCurrentPlayer={currentPlayerIndex === 0}
+            isCurrentUser={true} 
+            on:playCard={(event) => {
+                if (!passingPhase) {
+                handlePlayCard(event);
+                } else {
+                handleCardSelect({ detail: { player: players[0], card: event.detail } });
+                }
+            }}
+            />
           </div>
         </div>
         

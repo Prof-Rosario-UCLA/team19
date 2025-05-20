@@ -4,10 +4,10 @@
   import type { CardType } from '../../lib/types';
   
   export let name: string;
-  export let isHuman: boolean = false;
+  export let isCurrentUser: boolean = false; 
   export let cards: CardType[] = [];
   export let score: number = 0;
-  export let isCurrentPlayer: boolean = false;
+  export let isCurrentPlayer: boolean = false; //this for whose turn
   export let canPlay: boolean = false;
   
   import { createEventDispatcher } from 'svelte';
@@ -28,6 +28,7 @@
     cards={cards} 
     playable={canPlay} 
     isCurrentPlayer={isCurrentPlayer} 
+    isCurrentUser={isCurrentUser}
     on:playCard={handlePlayCard} 
   />
 </div>
