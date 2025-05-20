@@ -1,4 +1,6 @@
 <script lang="ts">
+  console.log("Controls component loaded");
+
   export let gameStarted: boolean = false;
   export let gameOver: boolean = false;
   export let passingPhase: boolean = false;

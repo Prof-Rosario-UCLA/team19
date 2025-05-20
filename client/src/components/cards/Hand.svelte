@@ -1,4 +1,5 @@
 <script lang="ts">
+  console.log("Hand component loaded");
   import Card from './Card.svelte';
   import type { CardType } from '../../lib/types';
   import { createEventDispatcher } from 'svelte';

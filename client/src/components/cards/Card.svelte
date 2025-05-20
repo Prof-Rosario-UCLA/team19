@@ -1,4 +1,6 @@
 <script lang="ts">
+  console.log("Card component loaded");
+
   import { getContext } from "svelte";
   import { createEventDispatcher } from 'svelte';
   

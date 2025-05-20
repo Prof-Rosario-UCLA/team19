@@ -1,4 +1,6 @@
 <script lang="ts">
+  console.log("Table component loaded");
+
   import Card from '../cards/Card.svelte';
   import type { CardType } from '../../lib/types';
   

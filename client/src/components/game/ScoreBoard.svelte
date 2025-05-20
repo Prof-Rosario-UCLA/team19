@@ -1,4 +1,6 @@
 <script lang="ts">
+  console.log("ScoreBoard component loaded");
+
   export let scores: { [playerName: string]: number } = {};
   export let roundScores: { [playerName: string]: number } = {};
   export let roundNumber: number = 1;

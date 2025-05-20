@@ -1,4 +1,5 @@
 <script lang="ts">
+  console.log("Player component loaded");
   import Hand from '../cards/Hand.svelte';
   import type { CardType } from '../../lib/types';
   
