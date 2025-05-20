@@ -9,7 +9,38 @@
   function decrement() {
     count -= 1;
   }
+
+
+  // Import components to test
+  import Card from './components/cards/Card.svelte';
+  import Hand from './components/cards/Hand.svelte';
+  import Table from './components/game/Table.svelte';
+  import { setContext } from 'svelte';
+  
+  // Set card dimensions context
+  setContext('cardWidth', 80);
+  setContext('cardHeight', 120);
+  
+  // Sample data for testing
+  const sampleCards = [
+    { suit: "hearts", rank: "A" },
+    { suit: "diamonds", rank: 10 },
+    { suit: "clubs", rank: "K" },
+    { suit: "spades", rank: "Q" }
+  ];
+  
+  const sampleTrick = [
+    { player: "North", card: { suit: "clubs", rank: 2 } },
+    { player: "East", card: { suit: "clubs", rank: 9 } },
+  ];
+
+
+
 </script>
+
+
+
+
 
 <main class="min-h-screen bg-gray-100 flex items-center justify-center p-4">
   <div class="bg-white shadow-lg rounded-lg p-8 max-w-md w-full">
@@ -42,35 +73,44 @@
         </div>
       </div>
 
-      <!-- Color samples to verify Tailwind is working -->
-      <div class="grid grid-cols-4 gap-2 w-full">
-        <div class="h-8 bg-blue-500 rounded"></div>
-        <div class="h-8 bg-red-500 rounded"></div>
-        <div class="h-8 bg-green-500 rounded"></div>
-        <div class="h-8 bg-yellow-500 rounded"></div>
+      <!-- Card Component Test -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 w-full">
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Card Component</h2>
+        <div class="flex justify-center gap-4 flex-wrap">
+          <Card suit="hearts" rank="A" />
+          <Card suit="diamonds" rank="K" />
+          <Card suit="clubs" rank="Q" />
+          <Card suit="spades" rank="J" />
+          <Card suit="hearts" rank={10} />
+          <!-- Test a card face down -->
+          <Card suit="spades" rank={2} faceUp={false} />
+          <!-- Test a selectable card -->
+          <Card suit="hearts" rank="Q" selectable={true} />
+          <!-- Test a selected card -->
+          <Card suit="diamonds" rank={7} selectable={true} selected={true} />
+        </div>
       </div>
 
-      <!-- UI elements to test more Tailwind features -->
-      <div class="w-full space-y-4">
-        <input
-                type="text"
-                placeholder="Input with Tailwind styles"
-                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
+      <!-- Hand Component Test -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 w-full">
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Hand Component</h2>
+        <div class="flex justify-center">
+          <Hand cards={sampleCards} playable={true} isCurrentPlayer={true} />
+        </div>
+      </div>
 
-        <div class="flex gap-2">
-          <button class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors">
-            Button 1
-          </button>
-          <button class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
-            Button 2
-          </button>
+      <!-- Table Component Test -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 w-full">
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Table Component</h2>
+        <div class="flex justify-center">
+          <Table currentTrick={sampleTrick} trickWinner={null} />
         </div>
       </div>
     </div>
 
     <footer class="mt-8 pt-4 border-t border-gray-200 text-center text-gray-500 text-sm">
-      Tailwind CSS + Svelte is working!
+      Hearts Game Component Tests
     </footer>
+
   </div>
 </main>
