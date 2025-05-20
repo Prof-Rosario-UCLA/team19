@@ -1,4 +1,3 @@
-<!-- Card.svelte -->
 <script lang="ts">
   import { getContext } from "svelte";
   import { createEventDispatcher } from 'svelte';

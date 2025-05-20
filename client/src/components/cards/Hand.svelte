@@ -1,4 +1,3 @@
-<!-- Hand.svelte -->
 <script lang="ts">
   import Card from './Card.svelte';
   import type { CardType } from '../../lib/types';

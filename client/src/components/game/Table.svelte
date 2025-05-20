@@ -1,4 +1,3 @@
-<!-- Table.svelte -->
 <script lang="ts">
   import Card from '../cards/Card.svelte';
   import type { CardType } from '../../lib/types';
