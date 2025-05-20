@@ -1,4 +1,5 @@
-<script>
+<script lang="ts">
+
   import Hearts from './components/Hearts.svelte';
 </script>
 

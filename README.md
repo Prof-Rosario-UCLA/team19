@@ -17,7 +17,7 @@ A multiplayer implementation of Hearts - the classic card game - for CS144 S25.
 
 ### Prerequisites
 
-- Node.js (lts)
+- Node.js (LTS, v18+)
 - npm
 - Git
 

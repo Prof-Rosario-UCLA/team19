@@ -1,7 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -13,9 +13,9 @@
   },
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "build": ""
+    "start": "node dist/index.js",
+    "dev": "nodemon --watch './' --ext ts --exec 'node --loader ts-node/esm index.ts'",
+    "build": "tsc"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
