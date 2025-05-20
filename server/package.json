@@ -15,7 +15,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "build": "tsc"
+    "build": ""
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
