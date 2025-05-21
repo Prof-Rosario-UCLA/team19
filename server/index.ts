@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -8,9 +8,10 @@ import cors from 'cors';
 // Setup Express app
 const app = express();
 const server = createServer(app);
+
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5173", // This is the default Vite dev server port
+        origin: "http://localhost:5173",
         methods: ["GET", "POST"]
     }
 });
@@ -22,11 +23,12 @@ app.use(express.json());
 app.use(cors());
 
 // Get directory paths
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const clientDistPath = join(__dirname, '../client/dist');
 
 // API Routes
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', message: 'Server is running' });
 });
 
@@ -34,14 +36,10 @@ app.get('/api/health', (req, res) => {
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    // Handle chat messages
-    socket.on('chat message', (msg) => {
+    socket.on('chat message', (msg: string) => {
         console.log('Message received:', msg);
-        io.emit('chat message', msg); // Broadcast to all clients
+        io.emit('chat message', msg);
     });
-
-    // Handle game-specific events here
-    // ...
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
@@ -52,12 +50,12 @@ io.on('connection', (socket) => {
 app.use(express.static(clientDistPath));
 
 // SPA fallback (for production)
-app.get('*', (req, res) => {
+app.get('*', (req: Request, res: Response) => {
     res.sendFile(join(clientDistPath, 'index.html'));
 });
 
 // Start server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
 });

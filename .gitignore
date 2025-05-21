@@ -52,3 +52,13 @@ coverage/
 # Misc
 .cache/
 .temp/
+
+# NYC
+/.nyc_output
+
+# Package-lock.jsons
+**/package-lock.json
+
+# Svelte build output
+/server/public/*
+!/server/public/.gitkeep
