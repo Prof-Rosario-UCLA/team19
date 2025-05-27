@@ -169,9 +169,9 @@
         
         setTimeout(() => {
           currentTrick = [];
+          const winner = trickWinner; // Store trickWinner in a temporary variable
           trickWinner = null;
-          currentPlayerIndex = players.indexOf(trickWinner);
-          
+          currentPlayerIndex = players.indexOf(winner); // Use the temporary variable
           // Check if round is over (all cards played)
           if (Object.values(hands).every(hand => hand.length === 0)) {
             roundNumber++;
