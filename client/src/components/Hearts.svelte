@@ -261,7 +261,7 @@
         </div>
 
         <!-- West Player -->
-        <div class="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
+        <div class="absolute left-8 top-1/2 transform -translate-y-1/2 z-30">
           <div class="player-container west">
             <div class="player-info">
               <div class="player-name {currentPlayerIndex === 1 && !passingPhase ? 'active' : ''}">{players[1]}</div>
@@ -279,7 +279,7 @@
         </div>
 
         <!-- East Player -->
-        <div class="absolute right-4 top-1/2 transform -translate-y-1/2 z-10">
+        <div class="absolute right-8 top-1/2 transform -translate-y-1/2 z-30">
           <div class="player-container east">
             <div class="player-info">
               <div class="player-name {currentPlayerIndex === 3 && !passingPhase ? 'active' : ''}">{players[3]}</div>
@@ -466,21 +466,15 @@
               </div>
             </div>
 
-            <!-- Compact Scoreboard -->
+            <!-- Scoreboard using component -->
             <div class="order-3">
-              <div class="bg-black bg-opacity-40 rounded-lg p-3">
-                <div class="text-white text-xs">
-                  <div class="font-medium mb-2 text-center">Scores</div>
-                  <div class="grid grid-cols-2 gap-1 text-xs">
-                    {#each players as player}
-                      <div class="flex justify-between">
-                        <span class="{player === 'You' ? 'text-yellow-300' : 'text-green-200'}">{player}:</span>
-                        <span class="text-white">{scores[player] || 0}</span>
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-              </div>
+              <ScoreBoard 
+                scores={scores} 
+                roundScores={roundScores} 
+                roundNumber={roundNumber} 
+              />
+            
+
             </div>
           </div>
         </div>
@@ -562,12 +556,6 @@
     gap: 8px;
   }
   
-  /* Remove the writing-mode from west/east containers - only apply to hands */
-  .player-container.west,
-  .player-container.east {
-    /* Remove writing-mode from here */
-  }
-  
   .player-container.you {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
@@ -592,11 +580,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
   
-  /* Ensure horizontal text for side players */
-  .player-info-horizontal {
-    writing-mode: horizontal-tb;
-    text-orientation: mixed;
-  }
+
   
   .player-name {
     font-weight: 600;
@@ -622,12 +606,7 @@
     align-items: center;
     justify-content: center;
   }
-  
-  /* Only apply vertical writing to the hand area for card stacking */
-  .hand-container.hand-vertical {
-    writing-mode: horizontal-tb;
-    /* Cards will stack vertically but text stays horizontal */
-  }
+
 
   /* Background gradients */
   .bg-gradient-radial {
