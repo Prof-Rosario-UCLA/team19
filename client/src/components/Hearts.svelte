@@ -3,9 +3,7 @@
   
   // Import components
   import Card from './cards/Card.svelte';
-  import Hand from './cards/Hand.svelte'
-  import Player from './players/Player.svelte';
-  import Table from './game/Table.svelte';
+  import Hand from './cards/Hand.svelte';
   import ScoreBoard from './game/ScoreBoard.svelte';
   import Controls from './game/Controls.svelte';
   
