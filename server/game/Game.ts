@@ -21,7 +21,7 @@ import {
     getGameWinner,
     findStartingPlayer,
     canPlayCard
-} from './gameFlow';
+} from './gameFlow.js';
 
 export enum GamePhase {
     INITIALIZING = 'INITIALIZING',
