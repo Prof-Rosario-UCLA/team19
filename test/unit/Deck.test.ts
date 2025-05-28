@@ -13,7 +13,7 @@ import {
 } from '../../server/game/Deck.js';
 import { Card, Suit, Rank } from '../../server/game/types.js';
 
-describe('Deck Game Logic', () => {
+describe('Deck Module', () => {
     let sandbox: sinon.SinonSandbox;
 
     beforeEach(() => {
