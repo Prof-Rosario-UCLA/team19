@@ -359,7 +359,7 @@
           class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-md transition-colors text-lg"
           on:click={handleStartGame}
         >
-          Start Game
+          Start Game!
         </button>
       </div>
     {/if}
