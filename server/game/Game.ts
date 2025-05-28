@@ -4,7 +4,7 @@ import {
     Card,
     Suit,
     Rank
-} from './types';
+} from './types.js';
 import {
     PassingState,
     PassingDirection,

@@ -2,8 +2,8 @@
 // This includes logic for the passing, playing, and scoring phases
 
 
-import { Card, Player, GameState, Suit, Rank } from './types';
-import { createDeck, dealCards, sortHand, calculateTrickPoints, isValidPlay } from './Deck';
+import { Card, Player, GameState, Suit, Rank } from './types.js';
+import { createDeck, dealCards, sortHand, calculateTrickPoints, isValidPlay } from './Deck.js';
 
 export enum PassingDirection {
     LEFT = 'LEFT',
