@@ -209,23 +209,14 @@
 
 
   // Updated Card component to handle both playCard and cardSelect properly
-
   function handleCardClick(event) {
-
     const { player, card } = event.detail;
 
-    
-
     if (passingPhase) {
-
       handleCardSelect(event);
-
     } else if (currentPlayerIndex === 0 && !passingPhase) {
-
       handlePlayCard(event);
-
     }
-
   }
 
   
@@ -243,21 +234,6 @@
   {#if gameStarted}
     <!-- Game Board Container -->
     <div class="relative h-screen flex flex-col">
-      <!-- Header -->
-      <div class="flex-shrink-0 text-center py-4 bg-black bg-opacity-20">
-        <h1 class="text-2xl font-bold text-white mb-1">♠ Hearts ♥</h1>
-        <div class="text-green-200 text-sm flex items-center justify-center gap-4">
-          <span>Round {roundNumber}</span>
-          <span class="w-1 h-1 bg-green-400 rounded-full"></span>
-          {#if passingPhase}
-            <span class="text-yellow-300">Pass {passingDirection}</span>
-          {:else}
-            <span class="text-white font-medium">{players[currentPlayerIndex]}'s Turn</span>
-          {/if}
-        </div>
-      </div>
-
-      <!-- Game Area -->
       <div class="flex-1 relative overflow-hidden">
         <!-- Table Background with Felt Texture -->
         <div class="absolute inset-0 bg-gradient-radial from-green-600 via-green-700 to-green-800">
@@ -457,10 +433,25 @@
               {/if}
             </div>
 
-            <!-- Game Status -->
+            <!-- Game Status with Title -->
             <div class="order-1 lg:order-2 text-center">
               <div class="bg-black bg-opacity-40 rounded-lg p-3">
-                <div class="text-white text-sm space-y-1">
+                <!-- Hearts Title moved here -->
+                <div class="mb-3">
+                  <h1 class="text-xl font-bold text-white mb-1">♠ Hearts ♥</h1>
+                  <div class="text-green-200 text-xs flex items-center justify-center gap-2">
+                    <span>Round {roundNumber}</span>
+                    <span class="w-1 h-1 bg-green-400 rounded-full"></span>
+                    {#if passingPhase}
+                      <span class="text-yellow-300">Pass {passingDirection}</span>
+                    {:else}
+                      <span class="text-white font-medium">{players[currentPlayerIndex]}'s Turn</span>
+                    {/if}
+                  </div>
+                </div>
+                
+                <!-- Game Status -->
+                <div class="text-white text-sm space-y-1 border-t border-white border-opacity-20 pt-2">
                   {#if passingPhase}
                     <div class="text-yellow-300 font-medium">Passing Phase</div>
                     <div class="text-green-200">Choose 3 cards to pass {passingDirection}</div>
@@ -571,7 +562,12 @@
     gap: 8px;
   }
   
-
+  /* Remove the writing-mode from west/east containers - only apply to hands */
+  .player-container.west,
+  .player-container.east {
+    /* Remove writing-mode from here */
+  }
+  
   .player-container.you {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
@@ -601,7 +597,7 @@
     writing-mode: horizontal-tb;
     text-orientation: mixed;
   }
-
+  
   .player-name {
     font-weight: 600;
     font-size: 14px;
