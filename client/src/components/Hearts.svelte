@@ -571,12 +571,7 @@
     gap: 8px;
   }
   
-  .player-container.west,
-  .player-container.east {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-  }
-  
+
   .player-container.you {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
@@ -601,6 +596,12 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
   
+  /* Ensure horizontal text for side players */
+  .player-info-horizontal {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+  }
+
   .player-name {
     font-weight: 600;
     font-size: 14px;
@@ -626,8 +627,10 @@
     justify-content: center;
   }
   
-  .hand-container.vertical {
+  /* Only apply vertical writing to the hand area for card stacking */
+  .hand-container.hand-vertical {
     writing-mode: horizontal-tb;
+    /* Cards will stack vertically but text stays horizontal */
   }
 
   /* Background gradients */
