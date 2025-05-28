@@ -1,0 +1,35 @@
+# Client directory - not needed for deployment
+client/
+
+# Dependencies
+node_modules
+server/node_modules
+
+# Test files
+test/
+coverage/
+.nyc_output/
+
+# Development files
+*.log
+npm-debug.log*
+.env
+.env.*
+
+# Git and docs
+.git
+.gitignore
+README.md
+*.md
+
+# IDE files
+.vscode
+.idea
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# NYC and test outputs
+.nyc_output
+coverage
