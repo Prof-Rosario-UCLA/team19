@@ -3,7 +3,7 @@ import * as sinon from 'sinon';
 import { Game, GamePhase } from '../../server/game/Game.js';
 import { Suit, Rank } from '../../server/game/types.js';
 
-describe('Game Class', () => {
+describe('Game Module', () => {
     let sandbox: sinon.SinonSandbox;
     let game: Game;
     let playerIds: string[];
