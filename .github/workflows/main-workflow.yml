@@ -11,7 +11,7 @@ on:
       simulate_nightly:
         description: 'Simulate nightly run (includes integration tests and merge)'
         required: false
-        default: 'true'
+        default: true
         type: boolean
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_nightly == 'true')) && 'nightly' || github.ref }}
+          ref: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_nightly == true)) && 'nightly' || github.ref }}
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -56,7 +56,7 @@ jobs:
             
   nightly-integration:
     needs: build-and-test
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_nightly == 'true')
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_nightly == true)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,8 +101,8 @@ jobs:
           git push origin main
           
   deploy-production:
-    needs: build-and-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: nightly-integration
+    if: always() && (needs.nightly-integration.result == 'success' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
