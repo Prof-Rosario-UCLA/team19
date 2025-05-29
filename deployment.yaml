@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hearts-game-deployment
+  labels:
+    app: hearts-game
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hearts-game
+  template:
+    metadata:
+      labels:
+        app: hearts-game
+    spec:
+      containers:
+        - name: hearts-game-server
+          image: gcr.io/cs144-25s-tahsin4466/hearts-game-server:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
