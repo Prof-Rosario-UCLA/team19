@@ -10,12 +10,10 @@ COPY package*.json ./
 # Install root dependencies (includes TypeScript and all @types)
 RUN npm ci
 
-# Copy server package.json
+# Copy server package.json and install server dependencies
 COPY server/package*.json ./server/
-
-# Install server dependencies
 WORKDIR /app/server
-RUN npm ci --only=production
+RUN npm install --only=production
 
 # Go back to root and copy server source
 WORKDIR /app
@@ -25,11 +23,16 @@ COPY server/ ./server/
 WORKDIR /app/server
 RUN npm run build
 
-# Clean up: remove root node_modules and dev dependencies
+# Copy the pre-built client files
 WORKDIR /app
-RUN rm -rf node_modules
+COPY client/build/ ./server/client/dist/
+
+# Clean up: remove root node_modules
+RUN rm -rf /app/node_modules
+
+# Reinstall only server production dependencies and clean up
 WORKDIR /app/server
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --only=production && npm cache clean --force
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -39,12 +42,15 @@ RUN addgroup -g 1001 -S nodejs && \
 RUN chown -R nodejs:nodejs /app
 USER nodejs
 
+# Set working directory to server for startup
+WORKDIR /app/server
+
 # Expose port 3000
 EXPOSE 3000
 
 # Health check for GKE
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 # Start the application
 CMD ["npm", "start"]

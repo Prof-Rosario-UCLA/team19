@@ -1,7 +1,11 @@
-# Client directory - not needed for deployment
-client/
+# Client source files (we'll copy the built files directly)
+client/src/
+client/node_modules/
+client/.svelte-kit/
 
-# Dependencies
+# Keep client/build/ so we can copy it
+
+# Dependencies (will be installed fresh)
 node_modules
 server/node_modules
 
