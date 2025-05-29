@@ -1,7 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import ScoreBoard from '../game/ScoreBoard.svelte';
+  import Leaderboard from '../game/Leaderboard.svelte';
   
+  export let currentUser: string | null = null;
+
   const dispatch = createEventDispatcher();
   
   let gameCode = '';
@@ -35,21 +37,12 @@
       joinGame();
     }
   }
+
+  function logout() {
+    dispatch('logout');
+  }
   
-  // Demo scores for the scoreboard
-  const demoScores = {
-    'You': 0,
-    'West': 0,
-    'North': 0,
-    'East': 0
-  };
-  
-  const demoRoundScores = {
-    'You': 0,
-    'West': 0,
-    'North': 0,
-    'East': 0
-  };
+
   
   // Game rules data for easier modification
   const gameRules = {
@@ -69,22 +62,40 @@
 </script>
 
 <div class="min-h-screen relative">
-  <!-- Scoreboard in top right -->
+  <!-- Leaderboard in top right -->
   <div class="absolute top-4 right-4 z-10">
-    <ScoreBoard 
-      scores={demoScores} 
-      roundScores={demoRoundScores} 
-      roundNumber={1} 
-    />
+    <Leaderboard currentUser={currentUser} />
   </div>
+
+  <!-- User info and logout in top left (if logged in) -->
+  {#if currentUser}
+    <div class="absolute top-4 left-4 z-10">
+      <div class="bg-black bg-opacity-40 rounded-lg p-3 text-white">
+        <div class="text-sm">
+          <div class="text-green-300 font-medium">Welcome back!</div>
+          <div class="text-white">{currentUser}</div>
+          <button 
+            on:click={logout}
+            class="text-xs text-gray-300 hover:text-white transition-colors mt-1"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <div class="min-h-screen flex items-center justify-center p-4">
     <div class="max-w-2xl mx-auto">
       <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
+
         <!-- Header Section -->
         <div class="text-center mb-8">
           <h1 class="text-4xl font-bold text-gray-800 mb-2">♠ Hearts ♥</h1>
           <p class="text-gray-600 text-lg">The Classic Card Game</p>
+          {#if currentUser}
+            <p class="text-green-600 text-sm mt-2">Logged in as {currentUser}</p>
+          {/if}
         </div>
         
         <!-- Game Options Section -->
@@ -178,6 +189,17 @@
         <!-- Footer Info -->
         <div class="text-center text-xs text-gray-500">
           <p>Local games work offline • Online games connect you with other players</p>
+          {#if !currentUser}
+            <p class="mt-1">
+              <button 
+                on:click={() => dispatch('showLogin')}
+                class="text-green-600 hover:text-green-700 font-medium"
+              >
+                Create an account
+              </button> 
+              to save your stats and compete on the leaderboard!
+            </p>
+          {/if}
         </div>
       </div>
     </div>
