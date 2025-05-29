@@ -553,8 +553,6 @@
                 roundScores={roundScores} 
                 roundNumber={gameState.roundNumber} 
               />
-            
-
             </div>
           </div>
         </div>
