@@ -3,7 +3,7 @@ client/src/
 client/node_modules/
 client/.svelte-kit/
 
-# Keep client/build/ so we can copy it
+# Keep client/dist/ so we can copy it
 
 # Dependencies (will be installed fresh)
 node_modules

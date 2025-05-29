@@ -1,4 +1,3 @@
-# Use Node.js 18 Alpine for smaller image size
 FROM node:18-alpine
 
 # Set working directory
@@ -7,7 +6,7 @@ WORKDIR /app
 # Copy root package.json for shared dependencies
 COPY package*.json ./
 
-# Install root dependencies (includes TypeScript and all @types)
+# Install root dependencies
 RUN npm ci
 
 # Copy server package.json and install server dependencies
@@ -25,9 +24,9 @@ RUN npm run build
 
 # Copy the pre-built client files
 WORKDIR /app
-COPY client/build/ ./server/client/dist/
+COPY client/dist/ ./server/client/dist/
 
-# Clean up: remove root node_modules
+# Clean up and remove root node_modules
 RUN rm -rf /app/node_modules
 
 # Reinstall only server production dependencies and clean up
