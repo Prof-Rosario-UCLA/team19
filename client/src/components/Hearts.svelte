@@ -9,21 +9,32 @@
   import WelcomeScreen from './game/WelcomeScreen.svelte';
   import AIPlayer from './players/AIPlayer.svelte';
   import HumanPlayer from './players/HumanPlayer.svelte';
+  import Login from './game/Login.svelte';
   import type { CardType, PlayerType, GameState } from '../lib/types.ts';
 
   // Set card dimensions context
   setContext('cardWidth', 50);
   setContext('cardHeight', 70);
+
+  let currentUser: string | null = null;
+  let showLogin = false;
+  let isLoggedIn = false;
   
   // Game state
   let gameState: GameState = {
     gameStarted: false,
     gameOver: false,
     roundNumber: 1,
+    passingDirection: 'left',      
     passingPhase: false,
     currentPlayerIndex: 0,
+    players: ['You', 'West', 'North', 'East'],  
+    hands: {},                    
+    scores: {},                    
+    roundScores: {},           
     currentTrick: [],
-    trickWinner: null
+    trickWinner: null,
+    heartsBroken: false         
   };
 
   let passingDirection = 'left'; // 'left', 'right', 'across', 'none'
@@ -46,6 +57,9 @@
   // Initialize scores
   players.forEach(player => {
     roundScores[player.name] = 0;
+    gameState.scores[player.name] = 0;
+    gameState.roundScores[player.name] = 0;
+    gameState.hands[player.name] = [];
   });
 
   
@@ -110,6 +124,7 @@
     
     // Remove card from hand
     currentPlayer.hand.splice(cardIndex, 1);
+    gameState.hands[player] = [...currentPlayer.hand]; // Update GameState
     players = [...players]; // Update reactive reference
     
     // Add card to current trick
@@ -152,7 +167,9 @@
     players.forEach(player => {
       const roundScore = Math.floor(Math.random() * 10);
       roundScores[player.name] = roundScore;
+      gameState.roundScores[player.name] = roundScore;
       player.score += roundScore;
+      gameState.scores[player.name] = player.score;
     });
     
     players = [...players]; // Update reactive reference
@@ -280,6 +297,39 @@
   }
 
 
+    // Authentication event handlers
+  function handleLoginSuccess(event) {
+    const { username, stats } = event.detail;
+    currentUser = username;
+    isLoggedIn = true;
+    showLogin = false;
+    console.log(`Welcome back, ${username}!`, stats);
+  }
+  
+  function handleAccountCreated(event) {
+    const { username, message } = event.detail;
+    currentUser = username;
+    isLoggedIn = true;
+    showLogin = false;
+    alert(message);
+  }
+  
+  function handlePlayAsGuest() {
+    currentUser = null;
+    isLoggedIn = false;
+    showLogin = false;
+  }
+  
+  function handleShowLogin() {
+    showLogin = true;
+  }
+  
+  function handleLogout() {
+    currentUser = null;
+    isLoggedIn = false;
+    showLogin = false;
+  }
+
   // Reactive statements for scores
   $: scores = players.reduce((acc, player) => {
     acc[player.name] = player.score;
@@ -289,7 +339,14 @@
 
 <!-- Main container with gradient background -->
 <div class="min-h-screen bg-gradient-to-br from-green-900 via-green-800 to-emerald-900">
-  {#if gameState.gameStarted}
+  {#if showLogin}
+    <!-- Login Screen -->
+    <Login 
+      on:loginSuccess={handleLoginSuccess}
+      on:accountCreated={handleAccountCreated}
+      on:playAsGuest={handlePlayAsGuest}
+    />
+  {:else if gameState.gameStarted}  
     <!-- Game Board Container -->
     <div class="relative h-screen flex flex-col">
       <div class="flex-1 relative overflow-hidden">
@@ -507,9 +564,12 @@
   {:else}
     <!-- Welcome Screen Component -->
     <WelcomeScreen 
+      currentUser={currentUser}
       on:startGame={handleStartGame}
       on:createGame={handleCreateGame}
       on:joinGame={handleJoinGame}
+      on:showLogin={handleShowLogin}
+      on:logout={handleLogout}
     />
   {/if}
 </div>
