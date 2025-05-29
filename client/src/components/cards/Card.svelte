@@ -42,7 +42,12 @@
 
   role="button"
   tabindex={selectable ? 0 : -1}
-  on:keydown={(e) => e.key === 'Enter' && handleClick()}
+  on:keydown={(e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); // Prevent scrolling for Space key
+      handleClick();
+    }
+  }}
 
 >
   {#if faceUp}
