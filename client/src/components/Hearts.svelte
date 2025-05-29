@@ -242,6 +242,33 @@
   function handleStartGame() {
     initializeGame();
   }
+
+  function handleCreateGame(event) {
+    const { gameId } = event.detail;
+    console.log(`Creating game with ID: ${gameId}`);
+    // In a real implementation, you would:
+    // 1. Create a game room on your server
+    // 2. Navigate to `/game/${gameId}`
+    // 3. Set up multiplayer state
+    
+    // For now, just start a local game
+    alert(`Game created! Share this code with friends: ${gameId}\n\nURL: ${window.location.origin}/game/${gameId}`);
+    initializeGame();
+  }
+  
+  function handleJoinGame(event) {
+    const { gameCode } = event.detail;
+    console.log(`Joining game with code: ${gameCode}`);
+    // In a real implementation, you would:
+    // 1. Validate the game code with your server
+    // 2. Navigate to `/game/${gameCode}`
+    // 3. Join the existing game room
+    
+    // For now, just start a local game
+    alert(`Joining game: ${gameCode}\n\nURL: ${window.location.origin}/game/${gameCode}`);
+    initializeGame();
+  }
+
   
   function handleRestartGame() {
     gameState.roundNumber = 1;
@@ -479,7 +506,11 @@
 
   {:else}
     <!-- Welcome Screen Component -->
-    <WelcomeScreen on:startGame={handleStartGame} />
+    <WelcomeScreen 
+      on:startGame={handleStartGame}
+      on:createGame={handleCreateGame}
+      on:joinGame={handleJoinGame}
+    />
   {/if}
 </div>
  
