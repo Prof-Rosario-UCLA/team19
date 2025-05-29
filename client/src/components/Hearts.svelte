@@ -6,6 +6,7 @@
   import Hand from './cards/Hand.svelte';
   import ScoreBoard from './game/ScoreBoard.svelte';
   import Controls from './game/Controls.svelte';
+  import WelcomeScreen from './game/WelcomeScreen.svelte';
   import AIPlayer from './players/AIPlayer.svelte';
   import HumanPlayer from './players/HumanPlayer.svelte';
   import type { CardType, PlayerType, GameState } from '../lib/types.ts';
@@ -477,73 +478,12 @@
     </div>
 
   {:else}
-    <!-- Welcome Screen -->
-    <div class="min-h-screen flex items-center justify-center p-4">
-      <div class="max-w-2xl mx-auto">
-        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
-          <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">♠ Hearts ♥</h1>
-            <p class="text-gray-600 text-lg">The Classic Card Game</p>
-          </div>
-          
-          <div class="mb-8">
-            <h3 class="text-xl font-semibold mb-4 text-gray-800">Game Rules:</h3>
-            <div class="grid md:grid-cols-2 gap-4 text-sm text-gray-700">
-              <div class="space-y-2">
-                <div class="flex items-start gap-2">
-                  <span class="text-green-600 font-bold">•</span>
-                  <span>Each player gets 13 cards</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-green-600 font-bold">•</span>
-                  <span>Pass 3 cards each round</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-green-600 font-bold">•</span>
-                  <span>2 of clubs leads first trick</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-green-600 font-bold">•</span>
-                  <span>Must follow suit if possible</span>
-                </div>
-              </div>
-              <div class="space-y-2">
-                <div class="flex items-start gap-2">
-                  <span class="text-red-600 font-bold">•</span>
-                  <span>Each heart = 1 point</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-red-600 font-bold">•</span>
-                  <span>Queen of spades = 13 points</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-red-600 font-bold">•</span>
-                  <span>Game ends at 100 points</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-red-600 font-bold">•</span>
-                  <span>Lowest score wins!</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="text-center">
-            <button 
-              class="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
-              on:click={handleStartGame}
-            >
-              🎮 Start Game!
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Welcome Screen Component -->
+    <WelcomeScreen on:startGame={handleStartGame} />
   {/if}
 </div>
-
+ 
 <style>
-
   /* Background gradients */
   .bg-gradient-radial {
     background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
