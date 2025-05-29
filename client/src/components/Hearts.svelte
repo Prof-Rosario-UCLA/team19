@@ -3,15 +3,13 @@
   
   // Import components
   import Card from './cards/Card.svelte';
-  import Hand from './cards/Hand.svelte'
-  import Player from './players/Player.svelte';
-  import Table from './game/Table.svelte';
+  import Hand from './cards/Hand.svelte';
   import ScoreBoard from './game/ScoreBoard.svelte';
   import Controls from './game/Controls.svelte';
   
   // Set card dimensions context
-  setContext('cardWidth', 80);
-  setContext('cardHeight', 120);
+  setContext('cardWidth', 50);
+  setContext('cardHeight', 70);
   
   // Basic game state
   let gameStarted = false;
@@ -206,6 +204,19 @@
     scores = { ...scores };
     initializeGame();
   }
+
+
+  // Updated Card component to handle both playCard and cardSelect properly
+  function handleCardClick(event) {
+    const { player, card } = event.detail;
+
+    if (passingPhase) {
+      handleCardSelect(event);
+    } else if (currentPlayerIndex === 0 && !passingPhase) {
+      handlePlayCard(event);
+    }
+  }
+
   
   // Card is selected check
   function isCardSelected(player, card) {
@@ -216,165 +227,418 @@
   $: humanReadyToPass = passingPhase && selectedCards['You'].length === 3;
 </script>
 
-<div class="min-h-screen bg-gray-100 py-8">
-  <div class="max-w-5xl mx-auto px-4">
-    <header class="text-center mb-8">
-      <h1 class="text-3xl font-bold text-gray-800">Hearts</h1>
-      {#if gameStarted}
-        <p class="text-gray-600 mt-1">
-          Round {roundNumber} - 
-          {#if passingPhase}
-            Pass {passingDirection}
-          {:else}
-            {players[currentPlayerIndex]}'s Turn
-          {/if}
-        </p>
-      {/if}
-    </header>
-    
-    {#if gameStarted}
-      <div class="grid grid-cols-1 gap-6">
-        <!-- North player -->
-        <div class="order-1">
-          <Player 
-            name={players[2]} 
-            isCurrentUser={false} 
-            cards={hands[players[2]] || []} 
-            score={scores[players[2]] || 0}
-            isCurrentPlayer={currentPlayerIndex === 2 && !passingPhase}
-          />
+<!-- Main container with gradient background -->
+<div class="min-h-screen bg-gradient-to-br from-green-900 via-green-800 to-emerald-900">
+  {#if gameStarted}
+    <!-- Game Board Container -->
+    <div class="relative h-screen flex flex-col">
+      <div class="flex-1 relative overflow-hidden">
+        <!-- Table Background with Felt Texture -->
+        <div class="absolute inset-0 bg-gradient-radial from-green-600 via-green-700 to-green-800">
+          <!-- Felt pattern overlay -->
+          <div class="absolute inset-0 opacity-30" 
+               style="background-image: repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,.1) 2px, rgba(0,0,0,.1) 4px);"></div>
         </div>
-        
-        <!-- Middle row with West, Table, East -->
-        <div class="order-2 flex items-center">
-          <!-- West player -->
-          <div class="w-1/4">
-            <Player 
-              name={players[1]} 
-              isCurrentUser={false} 
-              cards={hands[players[1]] || []} 
-              score={scores[players[1]] || 0}
-              isCurrentPlayer={currentPlayerIndex === 1 && !passingPhase}
-            />
-          </div>
-          
-          <!-- Table -->
-          <div class="flex-1">
-            <Table currentTrick={currentTrick} trickWinner={trickWinner} />
-          </div>
-          
-          <!-- East player -->
-          <div class="w-1/4">
-            <Player 
-              name={players[3]} 
-              isCurrentUser={false} 
-              cards={hands[players[3]] || []} 
-              score={scores[players[3]] || 0}
-              isCurrentPlayer={currentPlayerIndex === 3 && !passingPhase}
-            />
-          </div>
-        </div>
-        
-        <!-- Human player -->
-        <div class="order-3">
-          <div class="bg-white rounded-lg shadow-md p-4 mb-4">
-            <div class="flex justify-between items-center mb-2">
-              <h3 class="font-bold text-lg {currentPlayerIndex === 0 && !passingPhase ? 'text-yellow-600' : 'text-gray-700'}">{players[0]}</h3>
-              <span class="font-medium text-gray-600">Score: {scores[players[0]] || 0}</span>
+
+        <!-- North Player -->
+        <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+          <div class="player-container north">
+            <div class="player-info mb-2">
+              <div class="player-name {currentPlayerIndex === 2 && !passingPhase ? 'active' : ''}">{players[2]}</div>
+              <div class="player-score">Score: {scores[players[2]] || 0}</div>
             </div>
-            
-            <Hand 
-            cards={hands[players[0]] || []}
-            playable={currentPlayerIndex === 0 && !passingPhase}
-            isCurrentPlayer={currentPlayerIndex === 0}
-            isCurrentUser={true} 
-            on:playCard={(event) => {
-                if (!passingPhase) {
-                handlePlayCard(event);
-                } else {
-                handleCardSelect({ detail: { player: players[0], card: event.detail } });
-                }
-            }}
-            />
+            <div class="hand-container">
+              <Hand 
+                cards={hands[players[2]] || []} 
+                playable={false}
+                isCurrentPlayer={currentPlayerIndex === 2 && !passingPhase}
+                isCurrentUser={false}
+              />
+            </div>
           </div>
         </div>
+
+        <!-- West Player -->
+        <div class="absolute left-8 top-1/2 transform -translate-y-1/2 z-30">
+          <div class="player-container west">
+            <div class="player-info">
+              <div class="player-name {currentPlayerIndex === 1 && !passingPhase ? 'active' : ''}">{players[1]}</div>
+              <div class="player-score">Score: {scores[players[1]] || 0}</div>
+            </div>
+            <div class="hand-container vertical">
+              <Hand 
+                cards={hands[players[1]] || []} 
+                playable={false}
+                isCurrentPlayer={currentPlayerIndex === 1 && !passingPhase}
+                isCurrentUser={false}
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- East Player -->
+        <div class="absolute right-8 top-1/2 transform -translate-y-1/2 z-30">
+          <div class="player-container east">
+            <div class="player-info">
+              <div class="player-name {currentPlayerIndex === 3 && !passingPhase ? 'active' : ''}">{players[3]}</div>
+              <div class="player-score">Score: {scores[players[3]] || 0}</div>
+            </div>
+            <div class="hand-container vertical">
+              <Hand 
+                cards={hands[players[3]] || []} 
+                playable={false}
+                isCurrentPlayer={currentPlayerIndex === 3 && !passingPhase}
+                isCurrentUser={false}
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Card Area -->
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+          {#if currentTrick.length === 0}
+            <!-- Empty table message -->
+            <div class="text-green-200 text-opacity-60 text-center font-medium">
+              <div class="text-lg">♠ ♥ ♦ ♣</div>
+              <div class="text-sm mt-1">Cards played will appear here</div>
+            </div>
+          {:else}
+            <!-- Trick cards positioned naturally -->
+            <div class="relative w-64 h-64">
+              <!-- North card position -->
+              {#if currentTrick.find(t => t.player === players[2])}
+                <div class="absolute top-0 left-1/2 transform -translate-x-1/2 rotate-2">
+                  <Card 
+                    suit={currentTrick.find(t => t.player === players[2]).card.suit} 
+                    rank={currentTrick.find(t => t.player === players[2]).card.rank}
+                    faceUp={true}
+                  />
+                </div>
+              {/if}
+              
+              <!-- West card position -->
+              {#if currentTrick.find(t => t.player === players[1])}
+                <div class="absolute left-0 top-1/2 transform -translate-y-1/2 -rotate-1">
+                  <Card 
+                    suit={currentTrick.find(t => t.player === players[1]).card.suit} 
+                    rank={currentTrick.find(t => t.player === players[1]).card.rank}
+                    faceUp={true}
+                  />
+                </div>
+              {/if}
+              
+              <!-- East card position -->
+              {#if currentTrick.find(t => t.player === players[3])}
+                <div class="absolute right-0 top-1/2 transform -translate-y-1/2 rotate-1">
+                  <Card 
+                    suit={currentTrick.find(t => t.player === players[3]).card.suit} 
+                    rank={currentTrick.find(t => t.player === players[3]).card.rank}
+                    faceUp={true}
+                  />
+                </div>
+              {/if}
+              
+              <!-- South card position (You) -->
+              {#if currentTrick.find(t => t.player === players[0])}
+                <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 -rotate-2">
+                  <Card 
+                    suit={currentTrick.find(t => t.player === players[0]).card.suit} 
+                    rank={currentTrick.find(t => t.player === players[0]).card.rank}
+                    faceUp={true}
+                  />
+                </div>
+              {/if}
+            </div>
+          {/if}
+          
+          <!-- Trick winner announcement -->
+          {#if trickWinner}
+            <div class="absolute -bottom-12 left-1/2 transform -translate-x-1/2 
+                        bg-black bg-opacity-70 text-white px-4 py-2 rounded-full text-sm font-medium
+                        animate-pulse">
+              {trickWinner} wins trick
+            </div>
+          {/if}        
+        </div>
         
-        <!-- Controls and scoreboard -->
-        <div class="order-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Controls 
-              gameStarted={gameStarted} 
-              gameOver={gameOver} 
-              passingPhase={passingPhase}
-              waitingForPlay={currentPlayerIndex !== 0 && !passingPhase}
-              on:startGame={handleStartGame}
-              on:restartGame={handleRestartGame}
-              on:passDone={handlePassDone}
-            />
+        <!-- South Player (You) -->
+        <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+          <div class="player-container south you">
+            <div class="player-info">
+              <div class="player-name {currentPlayerIndex === 0 && !passingPhase ? 'active' : ''}">{players[0]}</div>
+              <div class="player-score">Score: {scores[players[0]] || 0}</div>
+            </div>
+
             
-            {#if passingPhase}
-              <div class="mt-2 text-center">
-                <p class="text-sm text-gray-600 mb-2">
-                  Select 3 cards to pass {passingDirection}
-                </p>
-                <button 
-                  class="px-4 py-2 {humanReadyToPass ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-400 cursor-not-allowed'} 
-                         text-white rounded-md transition-colors"
-                  disabled={!humanReadyToPass}
-                  on:click={handlePassDone}
-                >
-                  Confirm Pass
-                </button>
+            <!-- Your cards (face up) -->
+            <div class="flex justify-center">
+              {#each (hands[players[0]] || []) as card, i}
+                <div class="relative transition-all duration-200 hover:-translate-y-2" 
+                     style="margin-left: {i === 0 ? '0' : '-25px'}; z-index: {i};">
+                  <Card 
+                    suit={card.suit} 
+                    rank={card.rank} 
+                    faceUp={true}
+                    selectable={passingPhase}
+                    selected={isCardSelected(players[0], card)}
+                    on:cardSelect={(event) => {
+                      if (passingPhase) {
+                        handleCardSelect({ detail: { player: players[0], card: event.detail } });
+                      } else {
+                        handlePlayCard({ detail: { player: players[0], card: event.detail } });
+                      }
+                    }}
+                  />
+                </div>
+              {/each}
+
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom UI Panel -->
+      <div class="flex-shrink-0 bg-black bg-opacity-30 backdrop-blur-sm border-t border-white border-opacity-20">
+        <div class="max-w-6xl mx-auto p-4">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
+            <!-- Controls -->
+            <div class="order-2 lg:order-1">
+              <Controls 
+                gameStarted={gameStarted} 
+                gameOver={gameOver} 
+                passingPhase={passingPhase}
+                waitingForPlay={currentPlayerIndex !== 0 && !passingPhase}
+                on:startGame={handleStartGame}
+                on:restartGame={handleRestartGame}
+                on:passDone={handlePassDone}
+              />
+              
+              {#if passingPhase}
+                <div class="mt-2 text-center">
+                  <p class="text-green-200 text-sm mb-2">
+                    Select 3 cards to pass {passingDirection}
+                  </p>
+                  <button 
+                    class="px-4 py-2 {humanReadyToPass ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 cursor-not-allowed'} 
+                           text-white rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                    disabled={!humanReadyToPass}
+                    on:click={handlePassDone}
+                  >
+                    Confirm Pass
+                  </button>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Game Status with Title -->
+            <div class="order-1 lg:order-2 text-center">
+              <div class="bg-black bg-opacity-40 rounded-lg p-3">
+                <!-- Hearts Title moved here -->
+                <div class="mb-3">
+                  <h1 class="text-xl font-bold text-white mb-1">♠ Hearts ♥</h1>
+                  <div class="text-green-200 text-xs flex items-center justify-center gap-2">
+                    <span>Round {roundNumber}</span>
+                    <span class="w-1 h-1 bg-green-400 rounded-full"></span>
+                    {#if passingPhase}
+                      <span class="text-yellow-300">Pass {passingDirection}</span>
+                    {:else}
+                      <span class="text-white font-medium">{players[currentPlayerIndex]}'s Turn</span>
+                    {/if}
+                  </div>
+                </div>
+                
+                <!-- Game Status -->
+                <div class="text-white text-sm space-y-1 border-t border-white border-opacity-20 pt-2">
+                  {#if passingPhase}
+                    <div class="text-yellow-300 font-medium">Passing Phase</div>
+                    <div class="text-green-200">Choose 3 cards to pass {passingDirection}</div>
+                  {:else if currentPlayerIndex !== 0}
+                    <div class="text-blue-300 font-medium">Waiting...</div>
+                    <div class="text-green-200">{players[currentPlayerIndex]} is playing</div>
+                  {:else}
+                    <div class="text-green-300 font-medium">Your Turn</div>
+                    <div class="text-green-200">Choose a card to play</div>
+                  {/if}
+                </div>
               </div>
-            {/if}
+            </div>
+
+            <!-- Scoreboard using component -->
+            <div class="order-3">
+              <ScoreBoard 
+                scores={scores} 
+                roundScores={roundScores} 
+                roundNumber={roundNumber} 
+              />
+            
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  {:else}
+    <!-- Welcome Screen -->
+    <div class="min-h-screen flex items-center justify-center p-4">
+      <div class="max-w-2xl mx-auto">
+        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
+          <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">♠ Hearts ♥</h1>
+            <p class="text-gray-600 text-lg">The Classic Card Game</p>
           </div>
           
-          <div>
-            <ScoreBoard scores={scores} roundScores={roundScores} roundNumber={roundNumber} />
+          <div class="mb-8">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">Game Rules:</h3>
+            <div class="grid md:grid-cols-2 gap-4 text-sm text-gray-700">
+              <div class="space-y-2">
+                <div class="flex items-start gap-2">
+                  <span class="text-green-600 font-bold">•</span>
+                  <span>Each player gets 13 cards</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-green-600 font-bold">•</span>
+                  <span>Pass 3 cards each round</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-green-600 font-bold">•</span>
+                  <span>2 of clubs leads first trick</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-green-600 font-bold">•</span>
+                  <span>Must follow suit if possible</span>
+                </div>
+              </div>
+              <div class="space-y-2">
+                <div class="flex items-start gap-2">
+                  <span class="text-red-600 font-bold">•</span>
+                  <span>Each heart = 1 point</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-red-600 font-bold">•</span>
+                  <span>Queen of spades = 13 points</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-red-600 font-bold">•</span>
+                  <span>Game ends at 100 points</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-red-600 font-bold">•</span>
+                  <span>Lowest score wins!</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="text-center">
+            <button 
+              class="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+              on:click={handleStartGame}
+            >
+              🎮 Start Game!
+            </button>
           </div>
         </div>
       </div>
-    {:else}
-      <div class="text-center p-10 bg-white rounded-lg shadow-md">
-        <h2 class="text-2xl font-bold mb-4">Welcome to Hearts!</h2>
-        <p class="text-gray-600 mb-8">
-          Hearts is a trick-taking card game for 4 players. The goal is to avoid taking hearts and the Queen of Spades.
-        </p>
-        
-        <div class="mb-8">
-          <h3 class="text-lg font-semibold mb-2">Game Rules:</h3>
-          <ul class="text-left max-w-md mx-auto text-sm text-gray-700 space-y-1">
-            <li>• Each player is dealt 13 cards</li>
-            <li>• In the first three rounds, players pass 3 cards to another player</li>
-            <li>• The player with the 2 of clubs leads the first trick</li>
-            <li>• Players must follow suit if possible</li>
-            <li>• The highest card of the led suit wins the trick</li>
-            <li>• Each heart is worth 1 point, and the Queen of Spades is worth 13 points</li>
-            <li>• The game ends when a player reaches 100 points</li>
-            <li>• The player with the lowest score wins</li>
-          </ul>
-        </div>
-        
-        <button 
-          class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-md transition-colors text-lg"
-          on:click={handleStartGame}
-        >
-          Start Game
-        </button>
-      </div>
-    {/if}
-  </div>
+    </div>
+  {/if}
 </div>
 
 <style>
-  .card-wrapper {
-    max-width: 50px;
+  /* Player containers */
+  .player-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
   }
   
-  /* Make the cards fan out nicely */
-  @media (min-width: 640px) {
-    .card-wrapper {
-      max-width: unset;
+  .player-container.you {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 8px 12px;
+    /* Adjust width to fit cards better */
+    width: fit-content;
+    max-width: 90vw;
+  }
+
+  /* Player info */
+  .player-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+
+  
+  .player-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: rgb(209, 213, 219);
+    transition: all 0.3s ease;
+  }
+  
+  .player-name.active {
+    color: rgb(251, 191, 36);
+    text-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+  }
+  
+  .player-score {
+    font-size: 12px;
+    color: rgb(156, 163, 175);
+  }
+
+  /* Hand containers */
+  .hand-container {
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+
+  /* Background gradients */
+  .bg-gradient-radial {
+    background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 1024px) {
+    .player-container.west,
+    .player-container.east {
+      position: absolute;
+      top: 20%;
+    }
+    
+    .player-container.west {
+      left: 8px;
+    }
+    
+    .player-container.east {
+      right: 8px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .player-info {
+      padding: 6px 8px;
+    }
+    
+    .player-name {
+      font-size: 12px;
+    }
+    
+    .player-score {
+      font-size: 10px;
     }
   }
 </style>
