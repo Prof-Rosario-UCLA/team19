@@ -38,6 +38,17 @@
          {selected ? '-translate-y-4 shadow-lg' : ''}"
   style="width: {cardWidth}px; height: {cardHeight}px;"
   on:click={handleClick}
+
+
+  role="button"
+  tabindex={selectable ? 0 : -1}
+  on:keydown={(e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); // Prevent scrolling for Space key
+      handleClick();
+    }
+  }}
+
 >
   {#if faceUp}
     <!-- Top left corner -->
