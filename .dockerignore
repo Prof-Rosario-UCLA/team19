@@ -1,0 +1,39 @@
+# Client source files (we'll copy the built files directly)
+client/src/
+client/node_modules/
+client/.svelte-kit/
+
+# Keep client/dist/ so we can copy it
+
+# Dependencies (will be installed fresh)
+node_modules
+server/node_modules
+
+# Test files
+test/
+coverage/
+.nyc_output/
+
+# Development files
+*.log
+npm-debug.log*
+.env
+.env.*
+
+# Git and docs
+.git
+.gitignore
+README.md
+*.md
+
+# IDE files
+.vscode
+.idea
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# NYC and test outputs
+.nyc_output
+coverage
