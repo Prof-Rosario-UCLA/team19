@@ -30,9 +30,12 @@ git clone https://github.com/Prof-Rosario-UCLA/team19.git
 cd project-name
 ```
 
-2. Install dependencies for both client and server:
+2. Install dependencies for client, server and testing:
 
 ```bash
+# Install testing dependencies
+npm install
+
 # Install server dependencies
 cd server
 npm install
@@ -73,6 +76,8 @@ This will:
 2. Build the server (Express)
 3. Copy the client build to the server's public directory
 
+Note that a new production version is continually built automatically to GKE from the latest changes on main.
+
 ## Contributing
 
 ### Branch Structure
@@ -85,7 +90,7 @@ Our repository uses the following branch structure:
 
 ### Workflow
 
-1. **Create a feature branch** from either main or nightly
+1. **Create a `feature` branch or `fix` branch** from either main or nightly
    ```bash
    git checkout main
    git pull
@@ -121,9 +126,8 @@ To use our testing infrastructure, run any of the following commands:
 
 Our project uses GitHub Actions for continuous integration and deployment:
 
-- **On push to feature branches**: Builds and tests the code
-- **On pull requests to main or nightly**: Builds and tests the code
-- **On nightly schedule**: Builds, tests, and if successful, merges nightly into main
-- **On push to main**: Builds, tests, and deploys to production
+- **On pull requests to main or nightly**: Builds and runs unit tests on the code
+- **On nightly schedule**: Builds and runs both unit and integration tests. If successful, merges nightly into main
+- **On push to main**: Builds, tests, and deploys to production in GKE
 
 You can check the status of workflows in the "Actions" tab of the repository.
