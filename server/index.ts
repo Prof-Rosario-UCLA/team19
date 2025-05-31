@@ -5,6 +5,11 @@ import { dirname, join } from 'node:path';
 import { Server } from 'socket.io';
 import cors from 'cors';
 
+// Import routes
+import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
+import roomRoutes from './routes/rooms.js';
+
 // Setup Express app
 const app = express();
 const server = createServer(app);
@@ -32,7 +37,12 @@ app.get('/api/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Socket.IO Connection
+// Mount API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/rooms', roomRoutes);
+
+// Socket.IO Connection (keep your existing socket code)
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
