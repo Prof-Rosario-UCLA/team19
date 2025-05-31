@@ -112,7 +112,7 @@ Our repository uses the following branch structure:
 
 5. **After review and approval**, your changes will be merged into the nightly branch
 
-6. **Nightly integration** runs at midnight, and if all tests pass, nightly is automatically merged into main
+6. **Nightly integration** runs at midnight (UTC), and if all tests pass, nightly is automatically merged into main
 
 ### Unit Testing
 
