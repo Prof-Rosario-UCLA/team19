@@ -16,7 +16,7 @@ import {
     deleteRoom,
     startGame,
     endGame,
-    addBotToRoom
+    addBotToRoom,
 } from '../db/queries.js';
 
 const router = Router();
@@ -350,8 +350,8 @@ router.put('/:room_code/end', requireAuth, async (req: any, res: any) => {
             }
         }
 
-        // End the game and save scores
-        const updatedRoom = await endGame(room.game_id, final_scores);
+        // End the game and get rating changes
+        const gameResult = await endGame(room.game_id, final_scores);
 
         // Get final results with placements
         const finalPlayers = await getPlayersInRoom(room.game_id);
@@ -359,17 +359,27 @@ router.put('/:room_code/end', requireAuth, async (req: any, res: any) => {
         console.log(`Game ended in room ${room_code} by ${req.user.username}`);
 
         res.json(successResponse({
-            game_id: updatedRoom.game_id,
-            room_code: updatedRoom.room_code,
-            status: updatedRoom.status,
-            end_time: updatedRoom.end_time,
-            final_results: finalPlayers.map(player => ({
-                player_id: player.player_id,
-                display_name: player.display_name,
-                score: player.score,
-                placement: player.placement,
-                type: player.type
-            }))
+            game_id: gameResult.room.game_id,
+            room_code: gameResult.room.room_code,
+            status: gameResult.room.status,
+            end_time: gameResult.room.end_time,
+            final_results: finalPlayers.map(player => {
+                // Find rating change for this player
+                const ratingChange = gameResult.rating_changes.find(rc => rc.user_id === player.user_id);
+
+                return {
+                    player_id: player.player_id,
+                    display_name: player.display_name,
+                    score: player.score,
+                    placement: player.placement,
+                    type: player.type,
+                    ...(ratingChange && {
+                        old_rating: ratingChange.old_rating,
+                        new_rating: ratingChange.new_rating,
+                        rating_change: ratingChange.rating_change
+                    })
+                };
+            })
         }, 'Game ended successfully'));
 
     } catch (error) {
@@ -378,11 +388,10 @@ router.put('/:room_code/end', requireAuth, async (req: any, res: any) => {
     }
 });
 
-// POST /api/rooms/:room_code/add-bot - Add bot player (host only)
 router.post('/:room_code/add-bot', requireAuth, async (req: any, res: any) => {
     try {
         const room_code = req.params.room_code;
-        const {bot_name, difficulty} = req.body;
+        const {bot_name} = req.body;
 
         // Validate input
         if (!bot_name || typeof bot_name !== 'string' || bot_name.trim().length === 0) {
@@ -427,7 +436,6 @@ router.post('/:room_code/add-bot', requireAuth, async (req: any, res: any) => {
             game_id: bot.game_id,
             display_name: bot.display_name,
             type: bot.type,
-            difficulty: difficulty || 'medium', // For future use
             position: playerCount + 1
         }, 'Bot added successfully'));
 

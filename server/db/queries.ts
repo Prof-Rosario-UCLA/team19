@@ -341,7 +341,7 @@ export const startGame = async (game_id: number) => {
 };
 
 export const endGame = async (game_id: number, finalScores: { player_id: number; score: number }[]) => {
-    // First, update all player scores and calculate placements
+    // First, update all player scores
     for (const playerScore of finalScores) {
         await query(
             'UPDATE player SET score = $1 WHERE player_id = $2',
@@ -349,30 +349,36 @@ export const endGame = async (game_id: number, finalScores: { player_id: number;
         );
     }
 
-    // Calculate placements (lowest score wins in Hearts)
+    // Calculate placements
     await query(
         `UPDATE player
          SET placement = subq.placement
-         FROM (
+             FROM (
              SELECT player_id,
                     ROW_NUMBER() OVER (ORDER BY score ASC) as placement
              FROM player
              WHERE game_id = $1
-         ) subq
+             ) subq
          WHERE player.player_id = subq.player_id`,
         [game_id]
     );
 
     // Update room status to completed
-    const result = await query(
-        `UPDATE room 
+    const roomResult = await query(
+        `UPDATE room
          SET status = 'completed', end_time = now()
          WHERE game_id = $1
-         RETURNING *`,
+             RETURNING *`,
         [game_id]
     );
 
-    return result.rows[0];
+    // Calculate and update user ratings for registered players
+    const ratingChanges = await calculateAndUpdateRatings(game_id);
+
+    return {
+        room: roomResult.rows[0],
+        rating_changes: ratingChanges
+    };
 };
 
 // ============================
@@ -426,4 +432,73 @@ export const getLeaderboardCount = async () => {
         []
     );
     return parseInt(result.rows[0].total);
+};
+
+// ============================
+// RATING CALCULATION QUERIES
+// ============================
+
+export const updateUserRating = async (user_id: number, new_rating: number) => {
+    const result = await query(
+        'UPDATE "user" SET rating = $1 WHERE user_id = $2 RETURNING rating',
+        [new_rating, user_id]
+    );
+    return result.rows[0];
+};
+
+export const calculateAndUpdateRatings = async (game_id: number) => {
+    // Get all registered players from the completed game with their current ratings
+    const players = await query(
+        `SELECT p.user_id, p.placement, p.score, u.rating
+         FROM player p
+         JOIN "user" u ON p.user_id = u.user_id
+         WHERE p.game_id = $1 AND p.user_id IS NOT NULL
+         ORDER BY p.placement ASC`,
+        [game_id]
+    );
+
+    if (players.rows.length === 0) {
+        return []; // No registered users to update
+    }
+
+    // Simple rating calculation for Hearts
+    // Winner gets points, losers lose points based on placement
+    const ratingChanges = [];
+    const avgRating = players.rows.reduce((sum: number, p: any) => sum + p.rating, 0) / players.rows.length;
+
+    for (const player of players.rows) {
+        let ratingChange = 0;
+
+        // Hearts scoring: lower placement = better (1st place = 1, 4th place = 4)
+        switch (player.placement) {
+            case 1: // Winner
+                ratingChange = Math.round(20 + (avgRating - player.rating) * 0.1);
+                break;
+            case 2: // Second place
+                ratingChange = Math.round(5 + (avgRating - player.rating) * 0.05);
+                break;
+            case 3: // Third place
+                ratingChange = Math.round(-5 + (avgRating - player.rating) * 0.02);
+                break;
+            case 4: // Last place
+                ratingChange = Math.round(-20 + (avgRating - player.rating) * 0.05);
+                break;
+        }
+
+        // Ensure minimum rating of 500
+        const newRating = Math.max(500, player.rating + ratingChange);
+
+        // Update the user's rating
+        await updateUserRating(player.user_id, newRating);
+
+        ratingChanges.push({
+            user_id: player.user_id,
+            old_rating: player.rating,
+            new_rating: newRating,
+            rating_change: ratingChange,
+            placement: player.placement
+        });
+    }
+
+    return ratingChanges;
 };
