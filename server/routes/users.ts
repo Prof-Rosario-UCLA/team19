@@ -1,6 +1,14 @@
+// server/routes/users.ts - Implemented version
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { successResponse, errorResponse } from '../utils/responses.js';
+import {
+    getUserById,
+    getUserByUsername,
+    updateUser,
+    getUserStats,
+    getUserGameHistory
+} from '../db/queries.js';
 
 const router = Router();
 
@@ -8,23 +16,24 @@ router.get('/:user_id', async (req: any, res: any) => {
     try {
         const user_id = req.params.user_id;
 
-        // TODO: Validate user_id is a number
-        // TODO: Query database for user by user_id
-        // TODO: Handle user not found
+        // Validate user_id is a number
+        const userId = parseInt(user_id);
+        if (isNaN(userId) || userId <= 0) {
+            return res.status(400).json(errorResponse('INVALID_USER_ID', 'Invalid user ID'));
+        }
 
-        // TEMPORARY: Mock response - REMOVE WHEN IMPLEMENTING ABOVE
-        const user = {
-            user_id: parseInt(user_id),
-            username: 'testuser',
-            email: 'test@example.com',
-            avatar_url: null,
-            rating: 1000,
-            join_date: new Date()
-        };
+        // Query database for user by user_id
+        const user = await getUserById(userId);
+
+        // Handle user not found
+        if (!user) {
+            return res.status(404).json(errorResponse('USER_NOT_FOUND', 'User not found'));
+        }
 
         res.json(successResponse(user));
     } catch (error) {
-        res.status(404).json(errorResponse('USER_NOT_FOUND', 'User not found'));
+        console.error('Get user error:', error);
+        res.status(500).json(errorResponse('USER_FETCH_FAILED', 'Failed to fetch user'));
     }
 });
 
@@ -33,15 +42,51 @@ router.put('/:user_id', requireAuth, async (req: any, res: any) => {
         const user_id = req.params.user_id;
         const { username, avatar_url } = req.body;
 
-        // TODO: Validate user owns this profile (user_id matches req.user.user_id)
-        // TODO: Validate input data (username format, avatar_url format)
-        // TODO: Check if username is already taken by another user
-        // TODO: Update user in database
+        // Validate user_id is a number
+        const userId = parseInt(user_id);
+        if (isNaN(userId) || userId <= 0) {
+            return res.status(400).json(errorResponse('INVALID_USER_ID', 'Invalid user ID'));
+        }
 
-        console.log('Current user:', req.user.username);
+        // Validate user owns this profile
+        if (userId !== req.user.user_id) {
+            return res.status(403).json(errorResponse('FORBIDDEN', 'Cannot update another user\'s profile'));
+        }
 
-        res.json(successResponse({ message: 'Profile updated successfully' }));
+        // Validate input data
+        if (username !== undefined) {
+            if (typeof username !== 'string' || username.trim().length < 2 || username.trim().length > 50) {
+                return res.status(400).json(errorResponse('INVALID_USERNAME', 'Username must be 2-50 characters'));
+            }
+
+            // Check if username is already taken by another user
+            const existingUser = await getUserByUsername(username.trim());
+            if (existingUser && existingUser.user_id !== userId) {
+                return res.status(409).json(errorResponse('USERNAME_TAKEN', 'Username is already taken'));
+            }
+        }
+
+        if (avatar_url !== undefined && avatar_url !== null) {
+            if (typeof avatar_url !== 'string' || avatar_url.length > 500) {
+                return res.status(400).json(errorResponse('INVALID_AVATAR_URL', 'Avatar URL must be a valid string under 500 characters'));
+            }
+        }
+
+        // Prepare updates object
+        const updates: { username?: string; avatar_url?: string } = {};
+        if (username !== undefined) updates.username = username.trim();
+        if (avatar_url !== undefined) updates.avatar_url = avatar_url;
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json(errorResponse('NO_UPDATES', 'No valid updates provided'));
+        }
+
+        // Update user in database
+        const updatedUser = await updateUser(userId, updates);
+
+        res.json(successResponse(updatedUser, 'Profile updated successfully'));
     } catch (error) {
+        console.error('Update user error:', error);
         res.status(500).json(errorResponse('UPDATE_FAILED', 'Failed to update profile'));
     }
 });
@@ -50,58 +95,66 @@ router.get('/:user_id/stats', async (req: any, res: any) => {
     try {
         const user_id = req.params.user_id;
 
-        // TODO: Validate user_id
-        // TODO: Calculate stats from completed games in database
-        // TODO: Count wins (placement = 1), games played, etc.
-        // TODO: Calculate average scores, best/worst scores
-        // TODO: Calculate rating changes over time periods
+        // Validate user_id
+        const userId = parseInt(user_id);
+        if (isNaN(userId) || userId <= 0) {
+            return res.status(400).json(errorResponse('INVALID_USER_ID', 'Invalid user ID'));
+        }
 
-        // TEMPORARY: Mock response - REMOVE WHEN IMPLEMENTING ABOVE
-        const stats = {
-            games_played: 25,
-            wins: 8,
-            win_rate: 0.32,
-            avg_score: 65.4,
-            best_score: 12,
-            worst_score: 95,
-            current_rating: 1150,
-            rating_change_30_days: +75
-        };
+        // Check if user exists
+        const user = await getUserById(userId);
+        if (!user) {
+            return res.status(404).json(errorResponse('USER_NOT_FOUND', 'User not found'));
+        }
+
+        // Calculate stats from completed games in database
+        const stats = await getUserStats(userId);
 
         res.json(successResponse(stats));
     } catch (error) {
-        res.status(404).json(errorResponse('USER_NOT_FOUND', 'User not found'));
+        console.error('Get user stats error:', error);
+        res.status(500).json(errorResponse('STATS_FETCH_FAILED', 'Failed to fetch user statistics'));
     }
 });
 
+// GET /api/users/:user_id/history - Get user game history
 router.get('/:user_id/history', async (req: any, res: any) => {
     try {
         const user_id = req.params.user_id;
         const limit = req.query.limit || '10';
         const offset = req.query.offset || '0';
 
-        // TODO: Validate user_id, limit, offset
-        // TODO: Query completed games for this user
-        // TODO: Include game details, final scores, placements
-        // TODO: Order by most recent first
-        // TODO: Implement pagination (if needed)
+        // Validate user_id
+        const userId = parseInt(user_id);
+        if (isNaN(userId) || userId <= 0) {
+            return res.status(400).json(errorResponse('INVALID_USER_ID', 'Invalid user ID'));
+        }
 
-        // TEMPORARY: Mock response - REMOVE WHEN IMPLEMENTING ABOVE
-        const games = [
-            {
-                game_id: 5,
-                room_code: 'HRT789',
-                start_time: new Date(),
-                end_time: new Date(),
-                score: 67,
-                placement: 2,
-                rating_change: +15
-            }
-        ];
+        // Validate limit and offset
+        const limitNum = parseInt(limit as string);
+        const offsetNum = parseInt(offset as string);
 
-        res.json(successResponse({ games, total: 25 }));
+        if (isNaN(limitNum) || limitNum <= 0 || limitNum > 50) {
+            return res.status(400).json(errorResponse('INVALID_LIMIT', 'Limit must be between 1 and 50'));
+        }
+
+        if (isNaN(offsetNum) || offsetNum < 0) {
+            return res.status(400).json(errorResponse('INVALID_OFFSET', 'Offset must be 0 or greater'));
+        }
+
+        // Check if user exists
+        const user = await getUserById(userId);
+        if (!user) {
+            return res.status(404).json(errorResponse('USER_NOT_FOUND', 'User not found'));
+        }
+
+        // Query completed games for this user with pagination
+        const { games, total } = await getUserGameHistory(userId, limitNum, offsetNum);
+
+        res.json(successResponse({ games, total, limit: limitNum, offset: offsetNum }));
     } catch (error) {
-        res.status(404).json(errorResponse('USER_NOT_FOUND', 'User not found'));
+        console.error('Get user history error:', error);
+        res.status(500).json(errorResponse('HISTORY_FETCH_FAILED', 'Failed to fetch user game history'));
     }
 });
 
