@@ -5,11 +5,12 @@ import { dirname, join } from 'node:path';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-dotenv.config();
 import './db/connection.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import roomRoutes from './routes/rooms.js';
+
+dotenv.config();
 
 const app = express();
 const server = createServer(app);
@@ -33,6 +34,9 @@ const clientDistPath = join(__dirname, '../client/dist');
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rooms', roomRoutes);
+app.get('/api/health', (req: Request, res: Response) => {
+    res.json({ status: 'ok', message: 'Server is running' });
+});
 
 // Socket.IO
 io.on('connection', (socket) => {

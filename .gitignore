@@ -21,7 +21,7 @@ node_modules/
 */public/build/
 
 # Environment variables
-.env
+server/.env
 .env.*
 !.env.example
 gke-key.json

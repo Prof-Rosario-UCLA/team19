@@ -17,7 +17,7 @@ coverage/
 # Development files
 *.log
 npm-debug.log*
-.env
+server/.env
 .env.*
 
 # Git and docs
