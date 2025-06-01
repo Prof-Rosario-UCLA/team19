@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import { successResponse, errorResponse } from '../utils/responses.js';
 import {
     getUserByAuthId,
@@ -8,6 +9,26 @@ import {
 } from '../db/queries.js';
 
 const router = Router();
+
+// Helper function to generate JWT token
+const generateToken = (user: any) => {
+    const payload = {
+        user_id: user.user_id,
+        auth_id: user.auth_id,
+        auth_provider: user.auth_provider,
+        username: user.username
+    };
+
+    if (!process.env.JWT_SECRET) {
+        throw new Error('JWT_SECRET not configured');
+    }
+
+    return jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: '7d', // Token expires in 7 days
+        issuer: 'hearts-game',
+        audience: 'hearts-game-users'
+    });
+};
 
 router.post('/register', async (req: any, res: any) => {
     try {
@@ -19,6 +40,12 @@ router.post('/register', async (req: any, res: any) => {
                 'MISSING_FIELDS',
                 'auth_id, auth_provider, username, and email are required'
             ));
+        }
+
+        // Basic email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json(errorResponse('INVALID_EMAIL', 'Invalid email format'));
         }
 
         // Check if user already exists by auth_id + auth_provider
@@ -48,9 +75,19 @@ router.post('/register', async (req: any, res: any) => {
             avatar_url
         });
 
-        // TODO: Generate JWT token for immediate login
+        // Generate JWT token for immediate login
+        const token = generateToken({
+            ...newUser,
+            auth_id,
+            auth_provider
+        });
 
-        res.status(201).json(successResponse(newUser, 'User registered successfully'));
+        res.status(201).json(successResponse({
+            user: newUser,
+            token,
+            expires_in: '7d'
+        }, 'User registered successfully'));
+
     } catch (error) {
         console.error('Registration error:', error);
         res.status(500).json(errorResponse('REGISTRATION_FAILED', 'Failed to register user'));
@@ -73,9 +110,22 @@ router.post('/login', async (req: any, res: any) => {
             return res.status(401).json(errorResponse('USER_NOT_FOUND', 'User not found with these credentials'));
         }
 
-        // TODO: Generate JWT token with user info
+        // Generate JWT token with user info
+        const token = generateToken(user);
 
-        res.json(successResponse(user, 'Login successful'));
+        res.json(successResponse({
+            user: {
+                user_id: user.user_id,
+                username: user.username,
+                email: user.email,
+                avatar_url: user.avatar_url,
+                rating: user.rating,
+                join_date: user.join_date
+            },
+            token,
+            expires_in: '7d'
+        }, 'Login successful'));
+
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json(errorResponse('LOGIN_FAILED', 'Login failed'));

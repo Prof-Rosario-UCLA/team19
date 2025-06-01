@@ -1,6 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
+// server/middleware/auth.ts - Clean version with any types
+import { getUserByAuthId, getUserById } from '../db/queries.js';
+import jwt from 'jsonwebtoken';
 
-export const requireAuth = (req: any, res: any, next: any) => {
+export const requireAuth = async (req: any, res: any, next: any) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
 
@@ -8,49 +10,64 @@ export const requireAuth = (req: any, res: any, next: any) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        // TODO: Verify JWT token (use jsonwebtoken library)
-        // TODO: Decode token to get user_id or auth_id
-        // TODO: Query database to get full user details
-        // TODO: Handle expired/invalid tokens
+        // Verify JWT token
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
 
-        // TEMPORARY: Mock user data - REMOVE WHEN IMPLEMENTING ABOVE
-        req.user = {
-            user_id: 1,
-            auth_id: 'mock_123',
-            auth_provider: 'google',
-            username: 'testuser',
-            email: 'test@example.com',
-            avatar_url: 'https://example.com/avatar.jpg',
-            join_date: new Date(),
-            rating: 1000
-        };
+        // Get user from database (try user_id first, fallback to auth_id)
+        let user = null;
+        if (decoded.user_id) {
+            user = await getUserById(decoded.user_id);
+        }
+        if (!user && decoded.auth_id && decoded.auth_provider) {
+            user = await getUserByAuthId(decoded.auth_id, decoded.auth_provider);
+        }
 
+        if (!user) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        // Add user to request
+        req.user = user;
         next();
-    } catch (error) {
-        res.status(401).json({ error: 'Invalid token' });
+
+    } catch (error: any) {
+        console.error('Auth error:', error.message);
+
+        // Handle JWT errors
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Token expired' });
+        }
+
+        return res.status(401).json({ error: 'Authentication failed' });
     }
 };
 
-export const optionalAuth = (req: any, res: any, next: any) => {
+export const optionalAuth = async (req: any, res: any, next: any) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
 
         if (token) {
-            // TODO: Same JWT verification logic as requireAuth
-            // TODO: If token is invalid, just continue without setting req.user
-            // TODO: Don't return error for optional auth
+            try {
+                // Try to verify token and get user
+                const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
 
-            // TEMPORARY: Mock user data - REMOVE WHEN IMPLEMENTING ABOVE
-            req.user = {
-                user_id: 1,
-                auth_id: 'mock_123',
-                auth_provider: 'google',
-                username: 'testuser',
-                email: 'test@example.com',
-                avatar_url: 'https://example.com/avatar.jpg',
-                join_date: new Date(),
-                rating: 1000
-            };
+                let user = null;
+                if (decoded.user_id) {
+                    user = await getUserById(decoded.user_id);
+                }
+                if (!user && decoded.auth_id && decoded.auth_provider) {
+                    user = await getUserByAuthId(decoded.auth_id, decoded.auth_provider);
+                }
+
+                if (user) {
+                    req.user = user;
+                }
+            } catch (error) {
+                console.warn('Optional auth failed:', error);
+            }
         }
 
         next();

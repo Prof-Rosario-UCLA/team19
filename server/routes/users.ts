@@ -1,4 +1,3 @@
-// server/routes/users.ts - Implemented version
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { successResponse, errorResponse } from '../utils/responses.js';

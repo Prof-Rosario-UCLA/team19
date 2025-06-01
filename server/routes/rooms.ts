@@ -14,7 +14,6 @@ import {
     removePlayerFromRoom,
     transferHostToNextPlayer,
     deleteRoom,
-    generateGuestSessionToken,
     startGame,
     endGame,
     addBotToRoom
@@ -198,16 +197,12 @@ router.post('/:room_code/join-guest', async (req: any, res: any) => {
             'guest'
         );
 
-        // Generate session token for guest
-        const session_token = generateGuestSessionToken();
-
         const response = {
             player_id: player.player_id,
             game_id: player.game_id,
             display_name: player.display_name,
             type: player.type,
             position: playerCount + 1,
-            session_token
         };
 
         res.json(successResponse(response, 'Joined room as guest'));

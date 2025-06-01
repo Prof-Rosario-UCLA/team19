@@ -325,11 +325,6 @@ export const transferHostToNextPlayer = async (game_id: number, new_host_id: num
     return result.rows[0];
 };
 
-export const generateGuestSessionToken = (): string => {
-    // TODO: Implement JWT token generation for guests
-    return "";
-};
-
 // ============================
 // GAME STATE MANAGEMENT QUERIES
 // ============================
