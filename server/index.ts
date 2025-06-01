@@ -34,23 +34,34 @@ const clientDistPath = join(__dirname, '../client/dist');
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rooms', roomRoutes);
-app.get('/api/health', (req: Request, res: Response) => {
-    res.json({ status: 'ok', message: 'Server is running' });
+
+app.get('/api/health', async (req: Request, res: Response) => {
+    try {
+        // Test database connection
+        const { query } = await import('./db/connection.js');
+        const result = await query('SELECT NOW() as current_time, version() as db_version');
+
+        res.json({
+            status: 'ok',
+            message: 'Server and database are running',
+            database: 'connected',
+            timestamp: result.rows[0].current_time,
+            database_version: result.rows[0].db_version.split(' ')[0],
+            environment: process.env.NODE_ENV || 'development'
+        });
+    } catch (error) {
+        console.error('Health check failed:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Database connection failed',
+            error: error instanceof Error ? error.message : 'Unknown error',
+            environment: process.env.NODE_ENV || 'development'
+        });
+    }
 });
 
 // Socket.IO
-io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
-
-    socket.on('chat message', (msg: string) => {
-        console.log('Message received:', msg);
-        io.emit('chat message', msg);
-    });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-    });
-});
+// Fill in later
 
 // Static file serving (for production)
 app.use(express.static(clientDistPath));
