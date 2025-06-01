@@ -19,7 +19,7 @@ const server = createServer(app);
 const io = new Server(server, {
     cors: {
         origin: process.env.NODE_ENV === 'production'
-            ? ["http://34.169.247.106/"] // GKE IP
+            ? ["http://34.169.247.106"] // GKE IP
             : ["http://localhost:5173"],
         methods: ["GET", "POST"]
     }
