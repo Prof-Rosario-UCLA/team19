@@ -14,7 +14,10 @@ import {
     removePlayerFromRoom,
     transferHostToNextPlayer,
     deleteRoom,
-    generateGuestSessionToken
+    generateGuestSessionToken,
+    startGame,
+    endGame,
+    addBotToRoom
 } from '../db/queries.js';
 
 const router = Router();
@@ -262,6 +265,181 @@ router.delete('/:room_code/leave', requireAuth, async (req: any, res: any) => {
     } catch (error) {
         console.error('Leave room error:', error);
         res.status(500).json(errorResponse('LEAVE_FAILED', 'Failed to leave room'));
+    }
+});
+
+router.put('/:room_code/start', requireAuth, async (req: any, res: any) => {
+    try {
+        const room_code = req.params.room_code;
+
+        // Get room and validate
+        const room = await getRoomByCode(room_code);
+        if (!room) {
+            return res.status(404).json(errorResponse('ROOM_NOT_FOUND', 'Room not found'));
+        }
+
+        // Check if user is the host
+        if (room.host_id !== req.user.user_id) {
+            return res.status(403).json(errorResponse('NOT_HOST', 'Only the host can start the game'));
+        }
+
+        // Check if game is in pending status
+        if (room.status !== 'pending') {
+            return res.status(400).json(errorResponse('INVALID_STATUS', 'Game is not in pending status'));
+        }
+
+        // Check if exactly 4 players
+        const playerCount = await getPlayerCountInRoom(room.game_id);
+        if (playerCount !== 4) {
+            return res.status(400).json(errorResponse('INSUFFICIENT_PLAYERS', 'Hearts requires exactly 4 players'));
+        }
+
+        // Start the game
+        const updatedRoom = await startGame(room.game_id);
+
+        console.log(`Game started in room ${room_code} by ${req.user.username}`);
+
+        res.json(successResponse({
+            game_id: updatedRoom.game_id,
+            room_code: updatedRoom.room_code,
+            status: updatedRoom.status,
+            start_time: updatedRoom.start_time
+        }, 'Game started successfully'));
+
+    } catch (error) {
+        console.error('Start game error:', error);
+        res.status(500).json(errorResponse('START_GAME_FAILED', 'Failed to start game'));
+    }
+});
+
+// PUT /api/rooms/:room_code/end - End game (host only)
+router.put('/:room_code/end', requireAuth, async (req: any, res: any) => {
+    try {
+        const room_code = req.params.room_code;
+        const { final_scores } = req.body;
+
+        // Validate final_scores format
+        if (!final_scores || !Array.isArray(final_scores)) {
+            return res.status(400).json(errorResponse('INVALID_SCORES', 'final_scores array is required'));
+        }
+
+        // Get room and validate
+        const room = await getRoomByCode(room_code);
+        if (!room) {
+            return res.status(404).json(errorResponse('ROOM_NOT_FOUND', 'Room not found'));
+        }
+
+        // Check if user is the host
+        if (room.host_id !== req.user.user_id) {
+            return res.status(403).json(errorResponse('NOT_HOST', 'Only the host can end the game'));
+        }
+
+        // Check if game is in progress
+        if (room.status !== 'in_progress') {
+            return res.status(400).json(errorResponse('INVALID_STATUS', 'Game is not in progress'));
+        }
+
+        // Validate final_scores has correct players
+        const players = await getPlayersInRoom(room.game_id);
+        if (final_scores.length !== players.length) {
+            return res.status(400).json(errorResponse('SCORE_MISMATCH', 'Score count must match player count'));
+        }
+
+        // Validate all player_ids exist
+        const playerIds = players.map(p => p.player_id);
+        for (const score of final_scores) {
+            if (!playerIds.includes(score.player_id)) {
+                return res.status(400).json(errorResponse('INVALID_PLAYER', `Player ${score.player_id} not found in room`));
+            }
+            if (typeof score.score !== 'number') {
+                return res.status(400).json(errorResponse('INVALID_SCORE', 'All scores must be numbers'));
+            }
+        }
+
+        // End the game and save scores
+        const updatedRoom = await endGame(room.game_id, final_scores);
+
+        // Get final results with placements
+        const finalPlayers = await getPlayersInRoom(room.game_id);
+
+        console.log(`Game ended in room ${room_code} by ${req.user.username}`);
+
+        res.json(successResponse({
+            game_id: updatedRoom.game_id,
+            room_code: updatedRoom.room_code,
+            status: updatedRoom.status,
+            end_time: updatedRoom.end_time,
+            final_results: finalPlayers.map(player => ({
+                player_id: player.player_id,
+                display_name: player.display_name,
+                score: player.score,
+                placement: player.placement,
+                type: player.type
+            }))
+        }, 'Game ended successfully'));
+
+    } catch (error) {
+        console.error('End game error:', error);
+        res.status(500).json(errorResponse('END_GAME_FAILED', 'Failed to end game'));
+    }
+});
+
+// POST /api/rooms/:room_code/add-bot - Add bot player (host only)
+router.post('/:room_code/add-bot', requireAuth, async (req: any, res: any) => {
+    try {
+        const room_code = req.params.room_code;
+        const {bot_name, difficulty} = req.body;
+
+        // Validate input
+        if (!bot_name || typeof bot_name !== 'string' || bot_name.trim().length === 0) {
+            return res.status(400).json(errorResponse('INVALID_BOT_NAME', 'Bot name is required'));
+        }
+
+        // Get room and validate
+        const room = await getRoomByCode(room_code);
+        if (!room) {
+            return res.status(404).json(errorResponse('ROOM_NOT_FOUND', 'Room not found'));
+        }
+
+        // Check if user is the host
+        if (room.host_id !== req.user.user_id) {
+            return res.status(403).json(errorResponse('NOT_HOST', 'Only the host can add bots'));
+        }
+
+        // Check if room is still pending
+        if (room.status !== 'pending') {
+            return res.status(400).json(errorResponse('GAME_STARTED', 'Cannot add bots after game has started'));
+        }
+
+        // Check if room has space
+        const playerCount = await getPlayerCountInRoom(room.game_id);
+        if (playerCount >= 4) {
+            return res.status(400).json(errorResponse('ROOM_FULL', 'Room is full (4/4 players)'));
+        }
+
+        // Check if bot name is unique in room
+        const existingNames = await getPlayerNamesInRoom(room.game_id);
+        if (existingNames.includes(bot_name.trim())) {
+            return res.status(409).json(errorResponse('NAME_TAKEN', 'Bot name is already taken in this room'));
+        }
+
+        // Add bot to room
+        const bot = await addBotToRoom(room.game_id, bot_name.trim());
+
+        console.log(`Bot ${bot_name} added to room ${room_code} by ${req.user.username}`);
+
+        res.json(successResponse({
+            player_id: bot.player_id,
+            game_id: bot.game_id,
+            display_name: bot.display_name,
+            type: bot.type,
+            difficulty: difficulty || 'medium', // For future use
+            position: playerCount + 1
+        }, 'Bot added successfully'));
+
+    } catch (error) {
+        console.error('Add bot error:', error);
+        res.status(500).json(errorResponse('ADD_BOT_FAILED', 'Failed to add bot'));
     }
 });
 

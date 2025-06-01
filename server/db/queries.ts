@@ -329,3 +329,106 @@ export const generateGuestSessionToken = (): string => {
     // TODO: Implement JWT token generation for guests
     return "";
 };
+
+// ============================
+// GAME STATE MANAGEMENT QUERIES
+// ============================
+
+export const startGame = async (game_id: number) => {
+    const result = await query(
+        `UPDATE room 
+         SET status = 'in_progress', start_time = now()
+         WHERE game_id = $1 AND status = 'pending'
+         RETURNING *`,
+        [game_id]
+    );
+    return result.rows[0];
+};
+
+export const endGame = async (game_id: number, finalScores: { player_id: number; score: number }[]) => {
+    // First, update all player scores and calculate placements
+    for (const playerScore of finalScores) {
+        await query(
+            'UPDATE player SET score = $1 WHERE player_id = $2',
+            [playerScore.score, playerScore.player_id]
+        );
+    }
+
+    // Calculate placements (lowest score wins in Hearts)
+    await query(
+        `UPDATE player
+         SET placement = subq.placement
+         FROM (
+             SELECT player_id,
+                    ROW_NUMBER() OVER (ORDER BY score ASC) as placement
+             FROM player
+             WHERE game_id = $1
+         ) subq
+         WHERE player.player_id = subq.player_id`,
+        [game_id]
+    );
+
+    // Update room status to completed
+    const result = await query(
+        `UPDATE room 
+         SET status = 'completed', end_time = now()
+         WHERE game_id = $1
+         RETURNING *`,
+        [game_id]
+    );
+
+    return result.rows[0];
+};
+
+// ============================
+// BOT MANAGEMENT QUERIES
+// ============================
+
+export const addBotToRoom = async (game_id: number, bot_name: string) => {
+    const result = await query(
+        `INSERT INTO player (game_id, user_id, display_name, score, type)
+         VALUES ($1, NULL, $2, 0, 'bot')
+         RETURNING player_id, game_id, display_name, score, type`,
+        [game_id, bot_name]
+    );
+    return result.rows[0];
+};
+
+// ============================
+// LEADERBOARD QUERIES
+// ============================
+
+export const getLeaderboard = async (limit: number = 100, offset: number = 0) => {
+    const result = await query(
+        `SELECT 
+            u.user_id,
+            u.username,
+            u.rating,
+            u.avatar_url,
+            u.join_date,
+            COUNT(p.player_id) as games_played,
+            COUNT(CASE WHEN p.placement = 1 THEN 1 END) as wins,
+            CASE 
+                WHEN COUNT(p.player_id) > 0 
+                THEN ROUND((COUNT(CASE WHEN p.placement = 1 THEN 1 END)::float / COUNT(p.player_id)::float) * 100, 1)
+                ELSE 0 
+            END as win_percentage
+         FROM "user" u
+         LEFT JOIN player p ON u.user_id = p.user_id
+         LEFT JOIN room r ON p.game_id = r.game_id AND r.status = 'completed'
+         WHERE u.username IS NOT NULL
+         GROUP BY u.user_id, u.username, u.rating, u.avatar_url, u.join_date
+         ORDER BY u.rating DESC, wins DESC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+    );
+    return result.rows;
+};
+
+export const getLeaderboardCount = async () => {
+    const result = await query(
+        'SELECT COUNT(*) as total FROM "user" WHERE username IS NOT NULL',
+        []
+    );
+    return parseInt(result.rows[0].total);
+};
