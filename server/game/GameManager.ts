@@ -80,4 +80,27 @@ export class GameManager {
         return this.rooms.get(roomId);
     }
 
+    playCard(roomId: string, socketId: string, card: Card): boolean {
+        const room = this.rooms.get(roomId);
+        if (!room) return false;
+
+        const playerIndex = room.players.get(socketId);
+        if (playerIndex === undefined) return false;
+
+        return room.game.playCard(playerIndex, card);
+    }
+
+    selectPassingCards(roomId: string, socketId: string, cards: Card[]): boolean {
+        const room = this.rooms.get(roomId);
+        if (!room) return false;
+
+        const playerIndex = room.players.get(socketId);
+        if (playerIndex === undefined) return false;
+
+        return room.game.selectCardsForPassing(playerIndex, cards);
+    }
+
+    getPlayerIndex(roomId: string, socketId: string): number | undefined {
+        return this.rooms.get(roomId)?.players.get(socketId);
+    }
 } 
