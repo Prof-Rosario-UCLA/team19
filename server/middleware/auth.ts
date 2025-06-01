@@ -1,4 +1,3 @@
-// server/middleware/auth.ts - Clean version with any types
 import { getUserByAuthId, getUserById } from '../db/queries.js';
 import jwt from 'jsonwebtoken';
 

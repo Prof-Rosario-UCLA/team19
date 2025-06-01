@@ -1,4 +1,3 @@
-// server/routes/rooms.ts - Implemented version
 import { Router } from 'express';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import { successResponse, errorResponse } from '../utils/responses.js';
