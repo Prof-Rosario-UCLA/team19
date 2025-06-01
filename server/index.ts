@@ -9,6 +9,7 @@ import './db/connection.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import roomRoutes from './routes/rooms.js';
+import leaderboardRoutes from './routes/leaderboard.js';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ const clientDistPath = join(__dirname, '../client/dist');
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 app.get('/api/health', async (req: Request, res: Response) => {
     try {

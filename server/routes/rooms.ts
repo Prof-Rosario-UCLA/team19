@@ -312,7 +312,6 @@ router.put('/:room_code/start', requireAuth, async (req: any, res: any) => {
     }
 });
 
-// PUT /api/rooms/:room_code/end - End game (host only)
 router.put('/:room_code/end', requireAuth, async (req: any, res: any) => {
     try {
         const room_code = req.params.room_code;
