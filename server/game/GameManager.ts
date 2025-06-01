@@ -68,5 +68,16 @@ export class GameManager {
         }
     }
 
-    
+    getRooms(): Array<{ id: string; name: string; playerCount: number }> {
+        return Array.from(this.rooms.entries()).map(([id, room]) => ({
+            id,
+            name: room.name,
+            playerCount: room.players.size
+        }));
+    }
+
+    getRoom(roomId: string): GameRoom | undefined {
+        return this.rooms.get(roomId);
+    }
+
 } 
