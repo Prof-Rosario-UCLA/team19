@@ -4,7 +4,7 @@ import {
     Card,
     Suit,
     Rank
-} from './types';
+} from './types.js';
 import {
     PassingState,
     PassingDirection,
@@ -21,9 +21,10 @@ import {
     getGameWinner,
     findStartingPlayer,
     canPlayCard
-} from './gameFlow';
+} from './gameFlow.js';
 
 export enum GamePhase {
+    WAITING_FOR_PLAYERS = 'WAITING_FOR_PLAYERS',
     INITIALIZING = 'INITIALIZING',
     PASSING = 'PASSING',
     PLAYING = 'PLAYING',
@@ -39,11 +40,35 @@ export class Game {
     private maxScore: number;
 
     constructor(playerIds: string[], playerNames: string[], maxScore: number = 100) {
+        this.maxScore = maxScore;
+
+        if (playerIds.length === 0 || playerNames.length === 0) {
+            // Initialize with empty state when no players
+            this.gameState = {
+                players: [],
+                deck: [],
+                currentTrick: [],
+                trickLeader: 0,
+                heartsBroken: false,
+                scores: {},
+                handNumber: 0,
+                isFirstTrick: true,
+                tricksPlayed: 0
+            };
+            this.currentPhase = GamePhase.WAITING_FOR_PLAYERS;
+            this.currentPlayerIndex = -1;
+            this.passingState = null;
+            return;
+        }
+
+        if (playerIds.length !== 4 || playerNames.length !== 4) {
+            throw new Error('Hearts requires exactly 4 players to start the game');
+        }
+
         this.gameState = initializeGame(playerIds, playerNames);
         this.passingState = null;
         this.currentPhase = GamePhase.INITIALIZING;
         this.currentPlayerIndex = -1;
-        this.maxScore = maxScore;
         this.startNewHand();
     }
 
