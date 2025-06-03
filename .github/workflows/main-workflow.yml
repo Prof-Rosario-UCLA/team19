@@ -146,8 +146,9 @@ jobs:
 
       - name: Deploy to GKE
         run: |
-          kubectl apply -f ingress.yaml
-          kubectl apply -f service.yaml
+          kubectl apply -f kubernetes/deployment.yaml
+          kubectl apply -f kubernetes/ingress.yaml
+          kubectl apply -f kubernetes/service.yaml
           kubectl set image deployment/hearts-game-deployment hearts-game-server=gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:${{ github.sha }}
           kubectl rollout status deployment/hearts-game-deployment
           kubectl get services
