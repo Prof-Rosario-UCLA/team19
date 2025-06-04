@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { io, Socket } from 'socket.io-client';
   import Leaderboard from '../game/Leaderboard.svelte';
+  import WaitingRoom from './WaitingRoom.svelte';
   
   export let currentUser: string | null = null;
 
@@ -17,6 +18,11 @@
   let availableRooms: any[] = [];
   let isConnecting = false;
   let showRoomsList = false;
+  
+  // Waiting room state
+  let inWaitingRoom = false;
+  let currentRoomId = '';
+  let currentRoomName = '';
   
   // Connection and room management
   let connectionError = '';
@@ -96,6 +102,7 @@
         console.log(`Room created successfully. Room ID: ${response.roomId}`);
         // Auto-join the created room
         gameCode = response.roomId;
+        currentRoomName = roomName.trim();
         console.log('About to auto-join with gameCode:', gameCode);
         joinOnlineRoom();
       } else {
@@ -140,7 +147,10 @@
       
       if (response && response.success) {
         console.log(`✅ Joined room ${roomIdToJoin} successfully`);
-        // The game state will be updated via the game_state_updated event
+        // Enter waiting room
+        currentRoomId = roomIdToJoin;
+        currentRoomName = roomName || `Room ${roomIdToJoin}`;
+        inWaitingRoom = true;
       } else {
         const errorMsg = response ? response.error : 'No response from server';
         roomError = `Failed to join room: ${errorMsg}`;
@@ -166,11 +176,34 @@
     }
     
     gameCode = room.id;
+    currentRoomName = room.name;
     joinOnlineRoom();
+  }
+  
+  // Waiting room event handlers
+  function handleLeaveRoom() {
+    inWaitingRoom = false;
+    currentRoomId = '';
+    currentRoomName = '';
+    gameCode = '';
+  }
+  
+  function handleGameReady(event) {
+    console.log('Game is ready to start:', event.detail);
+    // Could show a countdown or loading screen here
+  }
+  
+  function handleGameStarted(event) {
+    console.log('Game started:', event.detail);
+    dispatch('joinedOnlineGame', { 
+      gameState: event.detail.gameState,
+      roomId: event.detail.roomId
+    });
   }
   
   function joinRoomFromList(room: any) {
     gameCode = room.id;
+    currentRoomName = room.name;
     if (!playerName.trim()) {
       playerName = currentUser || `Player${Math.floor(Math.random() * 1000)}`;
     }
@@ -247,6 +280,20 @@
 </script>
 
 <div class="min-h-screen relative">
+  {#if inWaitingRoom}
+    <!-- Waiting Room Component -->
+    <WaitingRoom 
+      {socket}
+      roomId={currentRoomId}
+      roomName={currentRoomName}
+      {playerName}
+      {currentUser}
+      on:leaveRoom={handleLeaveRoom}
+      on:gameReady={handleGameReady}
+      on:gameStarted={handleGameStarted}
+    />
+  {:else}
+    <!-- Regular Welcome Screen Content -->
   <!-- Leaderboard in top right -->
   <div class="absolute top-4 right-4 z-10">
     <Leaderboard currentUser={currentUser} />
@@ -533,4 +580,5 @@
       </div>
     </div>
   </div>
+  {/if}
 </div>
