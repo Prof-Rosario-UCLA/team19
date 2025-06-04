@@ -27,7 +27,7 @@ export enum Rank {
 export interface Card {
     suit: Suit;
     rank: Rank;
-    value: number;
+    value: number; // Numeric value for scoring
 }
 
 // Basic player info visible to all clients
@@ -37,6 +37,7 @@ export interface PlayerPublicInfo {
     score: number;
     cardCount: number; // Number of cards in hand, visible to other players
 }
+
 
 // Game phase enum
 export enum GamePhase {
