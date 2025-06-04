@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+  import { io, Socket } from 'socket.io-client';
   import Leaderboard from '../game/Leaderboard.svelte';
   
   export let currentUser: string | null = null;
@@ -8,41 +9,196 @@
   
   let gameCode = '';
   let showJoinInput = false;
+  let showCreateInput = false;
+  let roomName = '';
+  let playerName = currentUser || '';
+  let socket: Socket | null = null;
+  let connectionStatus = 'Disconnected';
+  let availableRooms: any[] = [];
+  let isConnecting = false;
+  let showRoomsList = false;
+  
+  // Connection and room management
+  let connectionError = '';
+  let roomError = '';
   
   function startLocalGame() {
     dispatch('startGame');
   }
   
-  function createGame() {
-    // Generate a unique game code (6 characters)
-    const gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    dispatch('createGame', { gameId });
+  function connectToServer() {
+    if (socket?.connected) return;
+    
+    isConnecting = true;
+    connectionError = '';
+    
+    socket = io('http://localhost:3000');
+    
+    socket.on('connect', () => {
+      connectionStatus = 'Connected';
+      isConnecting = false;
+      console.log('Connected to server');
+      // Automatically get rooms when connected
+      getRooms();
+    });
+
+    socket.on('disconnect', () => {
+      connectionStatus = 'Disconnected';
+      isConnecting = false;
+      console.log('Disconnected from server');
+    });
+
+    socket.on('connect_error', (error) => {
+      connectionStatus = 'Connection Failed';
+      isConnecting = false;
+      connectionError = 'Could not connect to server. Make sure the server is running on localhost:3000';
+      console.error('Connection error:', error);
+    });
+
+    socket.on('rooms_updated', (rooms) => {
+      console.log('Rooms updated:', rooms);
+      availableRooms = rooms;
+    });
+
+    socket.on('game_state_updated', (data) => {
+      console.log('Game state updated:', data);
+      // Here you could dispatch an event to start the game with the server state
+      dispatch('joinedOnlineGame', { 
+        gameState: data.gameState,
+        roomId: gameCode // or track this differently
+      });
+    });
+  }
+  
+  function disconnectFromServer() {
+    if (socket) {
+      socket.disconnect();
+      socket = null;
+      availableRooms = [];
+    }
+  }
+  
+  function createOnlineRoom() {
+    if (!socket?.connected) {
+      roomError = 'Not connected to server';
+      return;
+    }
+    
+    if (!roomName.trim()) {
+      roomError = 'Please enter a room name';
+      return;
+    }
+    
+    roomError = '';
+    
+    socket.emit('create_room', { name: roomName.trim() }, (response) => {
+      if (response.success) {
+        console.log(`Room created successfully. Room ID: ${response.roomId}`);
+        // Auto-join the created room
+        gameCode = response.roomId;
+        joinOnlineRoom();
+      } else {
+        roomError = `Failed to create room: ${response.error}`;
+        console.error('Failed to create room:', response.error);
+      }
+    });
+  }
+  
+  function joinOnlineRoom() {
+    if (!socket?.connected) {
+      roomError = 'Not connected to server';
+      return;
+    }
+    
+    if (!gameCode.trim()) {
+      roomError = 'Please enter a room code';
+      return;
+    }
+    
+    if (!playerName.trim()) {
+      roomError = 'Please enter your player name';
+      return;
+    }
+    
+    roomError = '';
+    
+    socket.emit('join_room', { 
+      roomId: gameCode.trim().toUpperCase(), 
+      playerName: playerName.trim() 
+    }, (response) => {
+      if (response.success) {
+        console.log(`Joined room ${gameCode} successfully`);
+        // The game state will be updated via the game_state_updated event
+      } else {
+        roomError = `Failed to join room: ${response.error}`;
+        console.error('Failed to join room:', response.error);
+      }
+    });
+  }
+  
+  function getRooms() {
+    if (!socket?.connected) return;
+    
+    socket.emit('get_rooms', (rooms) => {
+      console.log('Retrieved rooms:', rooms);
+      availableRooms = rooms;
+    });
+  }
+  
+  function joinRoomFromList(room: any) {
+    gameCode = room.id;
+    if (!playerName.trim()) {
+      playerName = currentUser || `Player${Math.floor(Math.random() * 1000)}`;
+    }
+    joinOnlineRoom();
+  }
+  
+  function toggleCreateInput() {
+    showCreateInput = !showCreateInput;
+    if (!showCreateInput) {
+      roomName = '';
+      roomError = '';
+    }
   }
   
   function toggleJoinInput() {
     showJoinInput = !showJoinInput;
     if (!showJoinInput) {
       gameCode = '';
+      roomError = '';
     }
   }
   
-  function joinGame() {
-    if (gameCode.trim().length >= 4) {
-      dispatch('joinGame', { gameCode: gameCode.trim().toUpperCase() });
+  function toggleRoomsList() {
+    showRoomsList = !showRoomsList;
+    if (showRoomsList && socket?.connected) {
+      getRooms();
     }
   }
   
-  function handleKeydown(event) {
+  function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter') {
-      joinGame();
+      if (showJoinInput) {
+        joinOnlineRoom();
+      } else if (showCreateInput) {
+        createOnlineRoom();
+      }
     }
   }
 
   function logout() {
+    disconnectFromServer();
     dispatch('logout');
   }
   
-
+  // Auto-connect on mount if user wants to play online
+  onMount(() => {
+    // You could auto-connect here or wait for user action
+  });
+  
+  onDestroy(() => {
+    disconnectFromServer();
+  });
   
   // Game rules data for easier modification
   const gameRules = {
@@ -85,6 +241,22 @@
     </div>
   {/if}
 
+  <!-- Connection Status (top center) -->
+  <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+    <div class="bg-black bg-opacity-40 rounded-lg p-2 text-white text-sm flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full {connectionStatus === 'Connected' ? 'bg-green-500' : 'bg-red-500'}"></div>
+      <span>{connectionStatus}</span>
+      {#if !socket?.connected && !isConnecting}
+        <button 
+          on:click={connectToServer}
+          class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
+        >
+          Connect
+        </button>
+      {/if}
+    </div>
+  </div>
+
   <div class="min-h-screen flex items-center justify-center p-4">
     <div class="max-w-2xl mx-auto">
       <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
@@ -98,6 +270,19 @@
           {/if}
         </div>
         
+        <!-- Error Messages -->
+        {#if connectionError}
+          <div class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            {connectionError}
+          </div>
+        {/if}
+        
+        {#if roomError}
+          <div class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            {roomError}
+          </div>
+        {/if}
+        
         <!-- Game Options Section -->
         <div class="mb-8">
           <h3 class="text-xl font-semibold mb-4 text-gray-800 text-center">Game Options:</h3>
@@ -110,51 +295,165 @@
               🎮 Play Local Game
             </button>
             
-            <!-- Create Online Game Button -->
-            <button 
-              class="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
-              on:click={createGame}
-            >
-              🌐 Create Online Game
-            </button>
-            
-            <!-- Join Game Section -->
+            <!-- Online Game Section -->
             <div class="space-y-3">
+              <!-- Create Online Room -->
               <button 
-                class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
-                on:click={toggleJoinInput}
+                class="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                on:click={toggleCreateInput}
+                disabled={!socket?.connected}
               >
-                🔗 Join Game
+                🌐 Create Online Room
+                {#if !socket?.connected}
+                  <span class="text-sm font-normal">(Connect first)</span>
+                {/if}
+              </button>
+              
+              {#if showCreateInput}
+                <div class="bg-gray-50 p-4 rounded-xl border-2 border-green-200 transition-all duration-300">
+                  <div class="space-y-3">
+                    <div>
+                      <label for="roomName" class="block text-sm font-medium text-gray-700 mb-2">
+                        Room Name:
+                      </label>
+                      <input
+                        id="roomName"
+                        type="text"
+                        bind:value={roomName}
+                        on:keydown={handleKeydown}
+                        placeholder="My Awesome Game"
+                        maxlength="50"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      />
+                    </div>
+                    <button
+                      on:click={createOnlineRoom}
+                      disabled={!roomName.trim() || !socket?.connected}
+                      class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
+                    >
+                      Create Room
+                    </button>
+                  </div>
+                </div>
+              {/if}
+              
+              <!-- Join Online Room -->
+              <button 
+                class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                on:click={toggleJoinInput}
+                disabled={!socket?.connected}
+              >
+                🔗 Join Online Room
+                {#if !socket?.connected}
+                  <span class="text-sm font-normal">(Connect first)</span>
+                {/if}
               </button>
               
               {#if showJoinInput}
                 <div class="bg-gray-50 p-4 rounded-xl border-2 border-purple-200 transition-all duration-300">
-                  <label for="gameCode" class="block text-sm font-medium text-gray-700 mb-2">
-                    Enter Game Code:
-                  </label>
-                  <div class="flex gap-2">
-                    <input
-                      id="gameCode"
-                      type="text"
-                      bind:value={gameCode}
-                      on:keydown={handleKeydown}
-                      placeholder="ABCD12"
-                      maxlength="8"
-                      class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent uppercase text-center font-mono text-lg"
-                      style="text-transform: uppercase;"
-                    />
+                  <div class="space-y-3">
+                    <div>
+                      <label for="gameCode" class="block text-sm font-medium text-gray-700 mb-2">
+                        Room Code:
+                      </label>
+                      <input
+                        id="gameCode"
+                        type="text"
+                        bind:value={gameCode}
+                        on:keydown={handleKeydown}
+                        placeholder="ABCD123"
+                        maxlength="8"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent uppercase text-center font-mono text-lg"
+                        style="text-transform: uppercase;"
+                      />
+                    </div>
+                    <div>
+                      <label for="playerName" class="block text-sm font-medium text-gray-700 mb-2">
+                        Your Name:
+                      </label>
+                      <input
+                        id="playerName"
+                        type="text"
+                        bind:value={playerName}
+                        on:keydown={handleKeydown}
+                        placeholder={currentUser || "Enter your name"}
+                        maxlength="20"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      />
+                    </div>
                     <button
-                      on:click={joinGame}
-                      disabled={gameCode.trim().length < 4}
-                      class="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
+                      on:click={joinOnlineRoom}
+                      disabled={!gameCode.trim() || !playerName.trim() || !socket?.connected}
+                      class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
                     >
-                      Join
+                      Join Room
                     </button>
                   </div>
-                  <p class="text-xs text-gray-500 mt-2">
-                    Game codes are typically 4-8 characters long
-                  </p>
                 </div>
+              {/if}
+              
+              <!-- Browse Available Rooms -->
+              {#if socket?.connected}
+                <button 
+                  class="w-full px-6 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                  on:click={toggleRoomsList}
+                >
+                  🏠 Browse Available Rooms ({availableRooms.length})
+                </button>
+                
+                {#if showRoomsList}
+                  <div class="bg-gray-50 p-4 rounded-xl border-2 border-orange-200 transition-all duration-300">
+                    <div class="flex justify-between items-center mb-3">
+                      <h4 class="font-medium text-gray-700">Available Rooms:</h4>
+                      <button
+                        on:click={getRooms}
+                        class="text-sm bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                    
+                    {#if availableRooms.length === 0}
+                      <p class="text-gray-500 text-center py-4">No rooms available. Create one!</p>
+                    {:else}
+                      <div class="space-y-2 max-h-40 overflow-y-auto">
+                        {#each availableRooms as room}
+                          <div class="flex justify-between items-center p-3 bg-white rounded-lg border">
+                            <div>
+                              <div class="font-medium text-gray-800">{room.name}</div>
+                              <div class="text-sm text-gray-500">
+                                ID: {room.id} • Players: {room.playerCount}/4
+                              </div>
+                            </div>
+                            <button
+                              on:click={() => joinRoomFromList(room)}
+                              disabled={room.playerCount >= 4}
+                              class="px-3 py-1 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded text-sm font-medium"
+                            >
+                              {room.playerCount >= 4 ? 'Full' : 'Join'}
+                            </button>
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
+                    
+                    {#if !playerName.trim()}
+                      <div class="mt-3">
+                        <label for="browsePlayerName" class="block text-sm font-medium text-gray-700 mb-2">
+                          Your Name (required to join):
+                        </label>
+                        <input
+                          id="browsePlayerName"
+                          type="text"
+                          bind:value={playerName}
+                          placeholder={currentUser || "Enter your name"}
+                          maxlength="20"
+                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
               {/if}
             </div>
           </div>
