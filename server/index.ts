@@ -16,6 +16,8 @@ app.use(express.json());
 // Enable CORS for development
 app.use(cors());
 
+app.use(express.static('public'));
+
 // API Routes
 app.get('/api/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', message: 'Server is running' });
