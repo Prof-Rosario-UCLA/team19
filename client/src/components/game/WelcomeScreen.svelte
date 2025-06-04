@@ -32,7 +32,7 @@
     isConnecting = true;
     connectionError = '';
     
-    socket = io('http://localhost:3000');
+    socket = io('http://localhost:3000'); // Change this port if your server runs elsewhere
     
     socket.on('connect', () => {
       connectionStatus = 'Connected';
@@ -96,6 +96,7 @@
         console.log(`Room created successfully. Room ID: ${response.roomId}`);
         // Auto-join the created room
         gameCode = response.roomId;
+        console.log('About to auto-join with gameCode:', gameCode);
         joinOnlineRoom();
       } else {
         roomError = `Failed to create room: ${response.error}`;
@@ -121,17 +122,30 @@
     }
     
     roomError = '';
+    const roomIdToJoin = gameCode.trim(); // Remove .toUpperCase()
+    const playerNameToUse = playerName.trim();
+    
+    console.log('=== JOIN ROOM DEBUG ===');
+    console.log('Attempting to join room:', roomIdToJoin);
+    console.log('Player name:', playerNameToUse);
+    console.log('Socket ID:', socket.id);
+    console.log('Available rooms before join:', availableRooms);
     
     socket.emit('join_room', { 
-      roomId: gameCode.trim().toUpperCase(), 
-      playerName: playerName.trim() 
+      roomId: roomIdToJoin, 
+      playerName: playerNameToUse 
     }, (response) => {
-      if (response.success) {
-        console.log(`Joined room ${gameCode} successfully`);
+      console.log('=== JOIN ROOM RESPONSE ===');
+      console.log('Full response:', response);
+      
+      if (response && response.success) {
+        console.log(`✅ Joined room ${roomIdToJoin} successfully`);
         // The game state will be updated via the game_state_updated event
       } else {
-        roomError = `Failed to join room: ${response.error}`;
-        console.error('Failed to join room:', response.error);
+        const errorMsg = response ? response.error : 'No response from server';
+        roomError = `Failed to join room: ${errorMsg}`;
+        console.error('❌ Failed to join room:', errorMsg);
+        console.error('Response object:', response);
       }
     });
   }
@@ -145,12 +159,27 @@
     });
   }
   
+  function directJoinRoom(room: any) {
+    if (!playerName.trim()) {
+      roomError = 'Please enter your name first';
+      return;
+    }
+    
+    gameCode = room.id;
+    joinOnlineRoom();
+  }
+  
   function joinRoomFromList(room: any) {
     gameCode = room.id;
     if (!playerName.trim()) {
       playerName = currentUser || `Player${Math.floor(Math.random() * 1000)}`;
     }
-    joinOnlineRoom();
+    
+    // Auto-open join input and pre-fill the room code
+    showJoinInput = true;
+    showRoomsList = false;
+    
+    console.log('Auto-filled room code:', room.id, 'for room:', room.name);
   }
   
   function toggleCreateInput() {
@@ -286,6 +315,23 @@
         <!-- Game Options Section -->
         <div class="mb-8">
           <h3 class="text-xl font-semibold mb-4 text-gray-800 text-center">Game Options:</h3>
+          
+          <!-- Player Name Input (moved here) -->
+          <div class="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <label for="globalPlayerName" class="block text-sm font-medium text-gray-700 mb-2">
+              Your Name:
+            </label>
+            <input
+              id="globalPlayerName"
+              type="text"
+              bind:value={playerName}
+              placeholder={currentUser || "Enter your name"}
+              maxlength="20"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <p class="text-xs text-gray-500 mt-1">This name will be used for online games</p>
+          </div>
+          
           <div class="grid gap-4 mb-6">
             <!-- Local Game Button -->
             <button 
@@ -361,24 +407,9 @@
                         type="text"
                         bind:value={gameCode}
                         on:keydown={handleKeydown}
-                        placeholder="ABCD123"
+                        placeholder="abcd123 (case sensitive)"
                         maxlength="8"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent uppercase text-center font-mono text-lg"
-                        style="text-transform: uppercase;"
-                      />
-                    </div>
-                    <div>
-                      <label for="playerName" class="block text-sm font-medium text-gray-700 mb-2">
-                        Your Name:
-                      </label>
-                      <input
-                        id="playerName"
-                        type="text"
-                        bind:value={playerName}
-                        on:keydown={handleKeydown}
-                        placeholder={currentUser || "Enter your name"}
-                        maxlength="20"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-center font-mono text-lg"
                       />
                     </div>
                     <button
@@ -428,9 +459,16 @@
                             <button
                               on:click={() => joinRoomFromList(room)}
                               disabled={room.playerCount >= 4}
-                              class="px-3 py-1 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded text-sm font-medium"
+                              class="px-3 py-1 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded text-sm font-medium mr-1"
                             >
-                              {room.playerCount >= 4 ? 'Full' : 'Join'}
+                              {room.playerCount >= 4 ? 'Full' : 'Auto-Fill'}
+                            </button>
+                            <button
+                              on:click={() => directJoinRoom(room)}
+                              disabled={room.playerCount >= 4 || !playerName.trim()}
+                              class="px-3 py-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded text-sm font-medium"
+                            >
+                              {room.playerCount >= 4 ? 'Full' : 'Join Now'}
                             </button>
                           </div>
                         {/each}
@@ -439,17 +477,9 @@
                     
                     {#if !playerName.trim()}
                       <div class="mt-3">
-                        <label for="browsePlayerName" class="block text-sm font-medium text-gray-700 mb-2">
-                          Your Name (required to join):
-                        </label>
-                        <input
-                          id="browsePlayerName"
-                          type="text"
-                          bind:value={playerName}
-                          placeholder={currentUser || "Enter your name"}
-                          maxlength="20"
-                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        />
+                        <p class="text-sm text-gray-600 text-center">
+                          Please enter your name above to join rooms
+                        </p>
                       </div>
                     {/if}
                   </div>
