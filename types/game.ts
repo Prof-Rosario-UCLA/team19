@@ -34,8 +34,8 @@ export interface Card {
 export interface PlayerPublicInfo {
     id: string;
     name: string;
+    cardCount: number; // Number of cards in hand, instead of actual Card[]
     score: number;
-    cardCount: number; // Number of cards in hand, instead of actual cards
 }
 
 // Game phase to track current state of the game
