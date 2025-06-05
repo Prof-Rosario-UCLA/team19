@@ -6,23 +6,35 @@
   import Hand from './cards/Hand.svelte';
   import ScoreBoard from './game/ScoreBoard.svelte';
   import Controls from './game/Controls.svelte';
+  import WelcomeScreen from './game/WelcomeScreen.svelte';
   import AIPlayer from './players/AIPlayer.svelte';
   import HumanPlayer from './players/HumanPlayer.svelte';
+  import Login from './game/Login.svelte';
   import type { CardType, PlayerType, GameState } from '../lib/types.ts';
 
   // Set card dimensions context
   setContext('cardWidth', 50);
   setContext('cardHeight', 70);
+
+  let currentUser: string | null = null;
+  let showLogin = false;
+  let isLoggedIn = false;
   
   // Game state
   let gameState: GameState = {
     gameStarted: false,
     gameOver: false,
     roundNumber: 1,
+    passingDirection: 'left',      
     passingPhase: false,
     currentPlayerIndex: 0,
+    players: ['You', 'West', 'North', 'East'],  
+    hands: {},                    
+    scores: {},                    
+    roundScores: {},           
     currentTrick: [],
-    trickWinner: null
+    trickWinner: null,
+    heartsBroken: false         
   };
 
   let passingDirection = 'left'; // 'left', 'right', 'across', 'none'
@@ -45,6 +57,9 @@
   // Initialize scores
   players.forEach(player => {
     roundScores[player.name] = 0;
+    gameState.scores[player.name] = 0;
+    gameState.roundScores[player.name] = 0;
+    gameState.hands[player.name] = [];
   });
 
   
@@ -109,6 +124,7 @@
     
     // Remove card from hand
     currentPlayer.hand.splice(cardIndex, 1);
+    gameState.hands[player] = [...currentPlayer.hand]; // Update GameState
     players = [...players]; // Update reactive reference
     
     // Add card to current trick
@@ -151,7 +167,9 @@
     players.forEach(player => {
       const roundScore = Math.floor(Math.random() * 10);
       roundScores[player.name] = roundScore;
+      gameState.roundScores[player.name] = roundScore;
       player.score += roundScore;
+      gameState.scores[player.name] = player.score;
     });
     
     players = [...players]; // Update reactive reference
@@ -241,6 +259,33 @@
   function handleStartGame() {
     initializeGame();
   }
+
+  function handleCreateGame(event) {
+    const { gameId } = event.detail;
+    console.log(`Creating game with ID: ${gameId}`);
+    // In a real implementation, you would:
+    // 1. Create a game room on your server
+    // 2. Navigate to `/game/${gameId}`
+    // 3. Set up multiplayer state
+    
+    // For now, just start a local game
+    alert(`Game created! Share this code with friends: ${gameId}\n\nURL: ${window.location.origin}/game/${gameId}`);
+    initializeGame();
+  }
+  
+  function handleJoinGame(event) {
+    const { gameCode } = event.detail;
+    console.log(`Joining game with code: ${gameCode}`);
+    // In a real implementation, you would:
+    // 1. Validate the game code with your server
+    // 2. Navigate to `/game/${gameCode}`
+    // 3. Join the existing game room
+    
+    // For now, just start a local game
+    alert(`Joining game: ${gameCode}\n\nURL: ${window.location.origin}/game/${gameCode}`);
+    initializeGame();
+  }
+
   
   function handleRestartGame() {
     gameState.roundNumber = 1;
@@ -252,6 +297,39 @@
   }
 
 
+    // Authentication event handlers
+  function handleLoginSuccess(event) {
+    const { username, stats } = event.detail;
+    currentUser = username;
+    isLoggedIn = true;
+    showLogin = false;
+    console.log(`Welcome back, ${username}!`, stats);
+  }
+  
+  function handleAccountCreated(event) {
+    const { username, message } = event.detail;
+    currentUser = username;
+    isLoggedIn = true;
+    showLogin = false;
+    alert(message);
+  }
+  
+  function handlePlayAsGuest() {
+    currentUser = null;
+    isLoggedIn = false;
+    showLogin = false;
+  }
+  
+  function handleShowLogin() {
+    showLogin = true;
+  }
+  
+  function handleLogout() {
+    currentUser = null;
+    isLoggedIn = false;
+    showLogin = false;
+  }
+
   // Reactive statements for scores
   $: scores = players.reduce((acc, player) => {
     acc[player.name] = player.score;
@@ -261,7 +339,14 @@
 
 <!-- Main container with gradient background -->
 <div class="min-h-screen bg-gradient-to-br from-green-900 via-green-800 to-emerald-900">
-  {#if gameState.gameStarted}
+  {#if showLogin}
+    <!-- Login Screen -->
+    <Login 
+      on:loginSuccess={handleLoginSuccess}
+      on:accountCreated={handleAccountCreated}
+      on:playAsGuest={handlePlayAsGuest}
+    />
+  {:else if gameState.gameStarted}  
     <!-- Game Board Container -->
     <div class="relative h-screen flex flex-col">
       <div class="flex-1 relative overflow-hidden">
@@ -468,8 +553,6 @@
                 roundScores={roundScores} 
                 roundNumber={gameState.roundNumber} 
               />
-            
-
             </div>
           </div>
         </div>
@@ -477,73 +560,19 @@
     </div>
 
   {:else}
-    <!-- Welcome Screen -->
-    <div class="min-h-screen flex items-center justify-center p-4">
-      <div class="max-w-2xl mx-auto">
-        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
-          <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">♠ Hearts ♥</h1>
-            <p class="text-gray-600 text-lg">The Classic Card Game</p>
-          </div>
-          
-          <div class="mb-8">
-            <h3 class="text-xl font-semibold mb-4 text-gray-800">Game Rules:</h3>
-            <div class="grid md:grid-cols-2 gap-4 text-sm text-gray-700">
-              <div class="space-y-2">
-                <div class="flex items-start gap-2">
-                  <span class="text-green-600 font-bold">•</span>
-                  <span>Each player gets 13 cards</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-green-600 font-bold">•</span>
-                  <span>Pass 3 cards each round</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-green-600 font-bold">•</span>
-                  <span>2 of clubs leads first trick</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-green-600 font-bold">•</span>
-                  <span>Must follow suit if possible</span>
-                </div>
-              </div>
-              <div class="space-y-2">
-                <div class="flex items-start gap-2">
-                  <span class="text-red-600 font-bold">•</span>
-                  <span>Each heart = 1 point</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-red-600 font-bold">•</span>
-                  <span>Queen of spades = 13 points</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-red-600 font-bold">•</span>
-                  <span>Game ends at 100 points</span>
-                </div>
-                <div class="flex items-start gap-2">
-                  <span class="text-red-600 font-bold">•</span>
-                  <span>Lowest score wins!</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="text-center">
-            <button 
-              class="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
-              on:click={handleStartGame}
-            >
-              🎮 Start Game!
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Welcome Screen Component -->
+    <WelcomeScreen 
+      currentUser={currentUser}
+      on:startGame={handleStartGame}
+      on:createGame={handleCreateGame}
+      on:joinGame={handleJoinGame}
+      on:showLogin={handleShowLogin}
+      on:logout={handleLogout}
+    />
   {/if}
 </div>
-
+ 
 <style>
-
   /* Background gradients */
   .bg-gradient-radial {
     background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
