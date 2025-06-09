@@ -3,9 +3,10 @@
 
   import { getContext } from "svelte";
   import { createEventDispatcher } from 'svelte';
+  import { Suit, Rank } from '../../../../types/game.js';
   
-  export let suit: "hearts" | "diamonds" | "clubs" | "spades";
-  export let rank: number | "J" | "Q" | "K" | "A";
+  export let suit: Suit;
+  export let rank: Rank;
   export let faceUp: boolean = true;
   export let selectable: boolean = false;
   export let selected: boolean = false;
@@ -14,13 +15,12 @@
   const cardWidth = getContext('cardWidth') || 80;
   const cardHeight = getContext('cardHeight') || 120;
   
-
-  const isRed = suit === "hearts" || suit === "diamonds";
+  const isRed = suit === Suit.HEARTS || suit === Suit.DIAMONDS;
   const suitSymbol = {
-    "hearts": "♥",
-    "diamonds": "♦",
-    "clubs": "♣",
-    "spades": "♠"
+    [Suit.HEARTS]: "♥",
+    [Suit.DIAMONDS]: "♦",
+    [Suit.CLUBS]: "♣",
+    [Suit.SPADES]: "♠"
   }[suit];
   
   const dispatch = createEventDispatcher();

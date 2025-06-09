@@ -1,7 +1,8 @@
 <script lang="ts">
   console.log("Hand component loaded");
   import Card from './Card.svelte';
-  import type { CardType } from '../../lib/types';
+  import type { Card as CardType } from '../../../../types/game.js';
+  import { Suit, Rank } from '../../../../types/game.js';
   import { createEventDispatcher } from 'svelte';
   
   export let cards: CardType[] = [];
@@ -36,8 +37,8 @@
       {#each Array(Math.min(7, cards.length)) as _, i}
         <div class="absolute transition-all duration-200" style="left: {i * 15}px;">
           <Card 
-            suit="spades" 
-            rank={2} 
+            suit={Suit.SPADES} 
+            rank={Rank.TWO} 
             faceUp={false}
           />
         </div>
