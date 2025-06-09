@@ -3,10 +3,9 @@
 
   import { getContext } from "svelte";
   import { createEventDispatcher } from 'svelte';
-  import { Suit, Rank } from '../../../../types/game.js';
   
-  export let suit: Suit;
-  export let rank: Rank;
+  export let suit: "hearts" | "diamonds" | "clubs" | "spades";
+  export let rank: number | "J" | "Q" | "K" | "A";
   export let faceUp: boolean = true;
   export let selectable: boolean = false;
   export let selected: boolean = false;
@@ -15,12 +14,13 @@
   const cardWidth = getContext('cardWidth') || 80;
   const cardHeight = getContext('cardHeight') || 120;
   
-  const isRed = suit === Suit.HEARTS || suit === Suit.DIAMONDS;
+
+  const isRed = suit === "hearts" || suit === "diamonds";
   const suitSymbol = {
-    [Suit.HEARTS]: "♥",
-    [Suit.DIAMONDS]: "♦",
-    [Suit.CLUBS]: "♣",
-    [Suit.SPADES]: "♠"
+    "hearts": "♥",
+    "diamonds": "♦",
+    "clubs": "♣",
+    "spades": "♠"
   }[suit];
   
   const dispatch = createEventDispatcher();
@@ -30,6 +30,37 @@
       dispatch('cardSelect', { suit, rank });
     }
   }
+  // console.log("Card component loaded");
+
+  // import { getContext } from "svelte";
+  // import { createEventDispatcher } from 'svelte';
+  // import { Suit, Rank } from '../../../../types/game.js';
+  
+  // export let suit: Suit;
+  // export let rank: Rank;
+  // export let faceUp: boolean = true;
+  // export let selectable: boolean = false;
+  // export let selected: boolean = false;
+  
+  // // Card dimensions from context
+  // const cardWidth = getContext('cardWidth') || 80;
+  // const cardHeight = getContext('cardHeight') || 120;
+  
+  // const isRed = suit === Suit.HEARTS || suit === Suit.DIAMONDS;
+  // const suitSymbol = {
+  //   [Suit.HEARTS]: "♥",
+  //   [Suit.DIAMONDS]: "♦",
+  //   [Suit.CLUBS]: "♣",
+  //   [Suit.SPADES]: "♠"
+  // }[suit];
+  
+  // const dispatch = createEventDispatcher();
+  
+  // function handleClick() {
+  //   if (selectable) {
+  //     dispatch('cardSelect', { suit, rank });
+  //   }
+  // }
 </script>
 
 <div 

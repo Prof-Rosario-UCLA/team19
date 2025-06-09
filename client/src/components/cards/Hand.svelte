@@ -1,8 +1,7 @@
 <script lang="ts">
   console.log("Hand component loaded");
   import Card from './Card.svelte';
-  import type { Card as CardType } from '../../../../types/game.js';
-  import { Suit, Rank } from '../../../../types/game.js';
+  import type { CardType } from '../../lib/types';
   import { createEventDispatcher } from 'svelte';
   
   export let cards: CardType[] = [];
@@ -17,6 +16,24 @@
       dispatch('playCard', event.detail);
     }
   }
+  // console.log("Hand component loaded");
+  // import Card from './Card.svelte';
+  // import type { Card as CardType } from '../../../../types/game.js';
+  // import { Suit, Rank } from '../../../../types/game.js';
+  // import { createEventDispatcher } from 'svelte';
+  
+  // export let cards: CardType[] = [];
+  // export let playable: boolean = false;
+  // export let isCurrentPlayer: boolean = false;
+  // export let isCurrentUser: boolean = false;
+  
+  // const dispatch = createEventDispatcher();
+  
+  // function handleCardSelect(event) {
+  //   if (isCurrentPlayer && playable) {
+  //     dispatch('playCard', event.detail);
+  //   }
+  // }
 </script>
 <div class="relative h-40 my-5 min-w-[120px] {isCurrentPlayer ? 'ring-2 ring-yellow-400 rounded-lg' : ''}">
   {#if cards.length > 0}
@@ -37,10 +54,14 @@
       {#each Array(Math.min(7, cards.length)) as _, i}
         <div class="absolute transition-all duration-200" style="left: {i * 15}px;">
           <Card 
-            suit={Suit.SPADES} 
-            rank={Rank.TWO} 
+            suit="spades" 
+            rank={2} 
             faceUp={false}
           />
+            <!-- suit={Suit.SPADES}  -->
+            <!-- rank={Rank.TWO}  -->
+            <!-- faceUp={false} -->
+          
         </div>
       {/each}
       {#if cards.length > 7}

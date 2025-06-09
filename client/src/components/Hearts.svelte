@@ -1,14 +1,8 @@
 <script lang="ts">
   import { onMount, setContext } from 'svelte';
-  import { gameState, gameActions } from '../lib/stores/gameStore';
-  import { availableRooms } from '../lib/stores/socket';
-  import { initializeStores } from '../lib/stores/storeManager';
-  import { getPlayerPosition, getCardPosition } from '../lib/utils';
-  import { GamePhase } from '../../../types/game';
-  import type { Card } from '../../../types/game';
   
   // Import components
-  import CardComponent from './cards/CardComponent.svelte';
+  import Card from './cards/Card.svelte';
   import Hand from './cards/Hand.svelte';
   import ScoreBoard from './game/ScoreBoard.svelte';
   import Controls from './game/Controls.svelte';
@@ -16,6 +10,7 @@
   import AIPlayer from './players/AIPlayer.svelte';
   import HumanPlayer from './players/HumanPlayer.svelte';
   import Login from './game/Login.svelte';
+  import type { CardType, PlayerType, GameState } from '../lib/types.ts';
 
   // Set card dimensions context
   setContext('cardWidth', 50);
@@ -24,27 +19,240 @@
   let currentUser: string | null = null;
   let showLogin = false;
   let isLoggedIn = false;
-  let currentRoomId: string | null = null;
   
-  // Initialize stores on mount
-  onMount(() => {
-    initializeStores();
+  // Game state
+  let gameState: GameState = {
+    gameStarted: false,
+    gameOver: false,
+    roundNumber: 1,
+    passingDirection: 'left',      
+    passingPhase: false,
+    currentPlayerIndex: 0,
+    players: ['You', 'West', 'North', 'East'],  
+    hands: {},                    
+    scores: {},                    
+    roundScores: {},           
+    currentTrick: [],
+    trickWinner: null,
+    heartsBroken: false         
+  };
+
+  let passingDirection = 'left'; // 'left', 'right', 'across', 'none'
+  
+  // Player data
+  let players: PlayerType[] = [
+    { name: 'You', hand: [], score: 0, isHuman: true },
+    { name: 'West', hand: [], score: 0, isHuman: false },
+    { name: 'North', hand: [], score: 0, isHuman: false },
+    { name: 'East', hand: [], score: 0, isHuman: false }
+  ];
+  
+
+  let roundScores = {};
+  let humanReadyToPass = false;
+  let humanSelectedCards: CardType[] = [];
+  let aiPassingComplete = false;
+
+  
+  // Initialize scores
+  players.forEach(player => {
+    roundScores[player.name] = 0;
+    gameState.scores[player.name] = 0;
+    gameState.roundScores[player.name] = 0;
+    gameState.hands[player.name] = [];
   });
+
+  
+  // Deal cards to players
+  function dealCards() {
+    const suits: ("hearts" | "diamonds" | "clubs" | "spades")[] = ['hearts', 'diamonds', 'clubs', 'spades'];
+    const ranks: (number | "J" | "Q" | "K" | "A")[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 'J', 'Q', 'K', 'A'];
+    
+    let deck: CardType[] = [];
+  
+
+    suits.forEach(suit => {
+      ranks.forEach(rank => {
+        deck.push({ suit, rank });
+      });
+    });
+    
+    // Shuffle the deck
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    
+    // Deal 13 cards to each player
+    players.forEach((player, index) => {
+      player.hand = deck.slice(index * 13, (index + 1) * 13);
+      
+      // Sort the hands for easier play
+      player.hand.sort((a, b) => {
+        const suitOrder = { 'clubs': 0, 'diamonds': 1, 'spades': 2, 'hearts': 3 };
+        const rankOrder = { 
+          2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 
+          'J': 11, 'Q': 12, 'K': 13, 'A': 14 
+        };
+        
+        if (suitOrder[a.suit] !== suitOrder[b.suit]) {
+          return suitOrder[a.suit] - suitOrder[b.suit];
+        }
+        return rankOrder[a.rank] - rankOrder[b.rank];
+      });
+    });
+    
+    // Update reactive reference
+    players = [...players];
+  }
+  
+
+  // Core card playing logic
+  function playCard(player: string, card: CardType) {
+    if (gameState.passingPhase || gameState.gameOver) return false;
+    
+    // Only allow the current player to play
+    const currentPlayer = players[gameState.currentPlayerIndex];
+    if (player !== currentPlayer.name) return false;
+    
+    // Find the card in the player's hand
+    const cardIndex = currentPlayer.hand.findIndex(c => 
+      c.suit === card.suit && c.rank === card.rank
+    );
+    
+    if (cardIndex === -1) return false;
+    
+    // Remove card from hand
+    currentPlayer.hand.splice(cardIndex, 1);
+    gameState.hands[player] = [...currentPlayer.hand]; // Update GameState
+    players = [...players]; // Update reactive reference
+    
+    // Add card to current trick
+    gameState.currentTrick = [...gameState.currentTrick, { player, card }];
+    
+    // Move to next player
+    gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % 4;
+    
+    // Check if trick is complete
+    if (gameState.currentTrick.length === 4) {
+      completeTrick();
+    }
+    
+    return true;
+  }
+  
+  // Complete a trick
+  function completeTrick() {
+    setTimeout(() => {
+      // Simple trick winner logic - first player wins for now
+      gameState.trickWinner = gameState.currentTrick[0].player;
+      
+      setTimeout(() => {
+        const winner = gameState.trickWinner;
+        gameState.currentTrick = [];
+        gameState.trickWinner = null;
+        gameState.currentPlayerIndex = players.findIndex(p => p.name === winner);
+        
+        // Check if round is over (all cards played)
+        if (players.every(player => player.hand.length === 0)) {
+          endRound();
+        }
+      }, 2000);
+    }, 1000);
+  }
+  
+  // End current round
+  function endRound() {
+    // Simple scoring - random points for demo
+    players.forEach(player => {
+      const roundScore = Math.floor(Math.random() * 10);
+      roundScores[player.name] = roundScore;
+      gameState.roundScores[player.name] = roundScore;
+      player.score += roundScore;
+      gameState.scores[player.name] = player.score;
+    });
+    
+    players = [...players]; // Update reactive reference
+    roundScores = { ...roundScores };
+    
+    // Check if game should end (someone reached 100 points)
+    const maxScore = Math.max(...players.map(p => p.score));
+    if (maxScore >= 100) {
+      gameState.gameOver = true;
+      return;
+    }
+    
+    // Start next round
+    gameState.roundNumber++;
+    setTimeout(() => {
+      initializeGame();
+    }, 3000);
+  }
+ 
+
+// initialize the game
+  function initializeGame() {
+    gameState.gameStarted = true;
+    gameState.gameOver = false;
+    gameState.currentTrick = [];
+    gameState.trickWinner = null;
+    gameState.currentPlayerIndex = 0;
+    
+    // Reset round scores and passing state
+    players.forEach(player => {
+      roundScores[player.name] = 0;
+    });
+    roundScores = { ...roundScores };
+    humanReadyToPass = false;
+    humanSelectedCards = [];
+    aiPassingComplete = false;
+    
+    // Deal cards
+    dealCards();
+    
+    // Set passing direction based on round number
+    switch ((gameState.roundNumber - 1) % 4) {
+      case 0: passingDirection = 'left'; break;
+      case 1: passingDirection = 'right'; break;
+      case 2: passingDirection = 'across'; break;
+      case 3: passingDirection = 'none'; break;
+    }
+    
+    gameState.passingPhase = passingDirection !== 'none';
+    gameState = { ...gameState }; // Update reactive reference
+  }
 
   // Handle card play events from player components
   function handlePlayCard(event) {
-    const { card } = event.detail;
-    if (currentRoomId) {
-      gameActions.playCard(currentRoomId, card);
-    }
+    const { player, card } = event.detail;
+    playCard(player, card);
   }
+
 
     // Handle human player passing selection
   function handleHumanPassingSelection(event) {
     const { ready, selectedCards } = event.detail;
-    if (currentRoomId && ready) {
-      gameActions.selectPassingCards(currentRoomId, selectedCards);
-    }
+    humanReadyToPass = ready;
+    humanSelectedCards = selectedCards;
+  }
+
+  // Handle AI player passing selection
+  function handleAIPassingSelection(event) {
+    // For now, just mark AI as ready (we'll implement actual passing logic later)
+    console.log(`${event.detail.player} selected cards for passing:`, event.detail.cards);
+  }
+
+  
+  // Handle pass completion
+  function handlePassDone() {
+    if (!humanReadyToPass) return;
+    
+    // End passing phase
+    gameState.passingPhase = false;
+    humanReadyToPass = false;
+    humanSelectedCards = [];
+    aiPassingComplete = false;
+    gameState = { ...gameState };
   }
   
   // Control event handlers
@@ -193,7 +401,7 @@
 
         <!-- Center Card Area -->
         <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
-          {#if $gameState.currentTrick.length === 0}
+          {#if gameState.currentTrick.length === 0}
             <!-- Empty table message -->
             <div class="text-green-200 text-opacity-60 text-center font-medium">
               <div class="text-lg">♠ ♥ ♦ ♣</div>
@@ -206,14 +414,69 @@
               {#if gameState.currentTrick.find(t => t.player === players[2].name)}
                 <div class="absolute top-0 left-1/2 transform -translate-x-1/2 rotate-2">
                   <Card 
-                    suit={card.suit} 
-                    rank={card.rank}
+                    suit={gameState.currentTrick.find(t => t.player === players[2].name).card.suit} 
+                    rank={gameState.currentTrick.find(t => t.player === players[2].name).card.rank}
                     faceUp={true}
                   />
                 </div>
-              {/each}
+              {/if}
+              
+              <!-- West card position -->
+              {#if gameState.currentTrick.find(t => t.player === players[1].name)}
+                <div class="absolute left-0 top-1/2 transform -translate-y-1/2 -rotate-1">
+                  <Card 
+                    suit={gameState.currentTrick.find(t => t.player === players[1].name).card.suit} 
+                    rank={gameState.currentTrick.find(t => t.player === players[1].name).card.rank}
+                    faceUp={true}
+                  />
+                </div>
+              {/if}
+              
+              <!-- East card position -->
+              {#if gameState.currentTrick.find(t => t.player === players[3].name)}
+                <div class="absolute right-0 top-1/2 transform -translate-y-1/2 rotate-1">
+                  <Card 
+                    suit={gameState.currentTrick.find(t => t.player === players[3].name).card.suit} 
+                    rank={gameState.currentTrick.find(t => t.player === players[3].name).card.rank}
+                    faceUp={true}
+                  />
+                </div>
+              {/if}
+              
+              <!-- South card position (You) -->
+              {#if gameState.currentTrick.find(t => t.player === players[0].name)}
+                <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 -rotate-2">
+                  <Card 
+                    suit={gameState.currentTrick.find(t => t.player === players[0].name).card.suit} 
+                    rank={gameState.currentTrick.find(t => t.player === players[0].name).card.rank}
+                    faceUp={true}
+                  />
+                </div>
+              {/if}
             </div>
           {/if}
+          
+          <!-- Trick winner announcement -->
+          {#if gameState.trickWinner}
+            <div class="absolute -bottom-12 left-1/2 transform -translate-x-1/2 
+                        bg-black bg-opacity-70 text-white px-4 py-2 rounded-full text-sm font-medium
+                        animate-pulse">
+              {gameState.trickWinner} wins trick
+            </div>
+          {/if}        
+        </div>
+        
+        <!-- South Player (Human) -->
+        <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+          <HumanPlayer 
+            playerName={players[0].name}
+            cards={players[0].hand}
+            isActive={gameState.currentPlayerIndex === 0}
+            score={players[0].score}
+            passingPhase={gameState.passingPhase}
+            on:playCard={handlePlayCard}
+            on:readyToPassChanged={handleHumanPassingSelection}
+          />
         </div>
       </div>
 
@@ -257,24 +520,24 @@
                 <div class="mb-3">
                   <h1 class="text-xl font-bold text-white mb-1">♠ Hearts ♥</h1>
                   <div class="text-green-200 text-xs flex items-center justify-center gap-2">
-                    <span>Hand {$gameState.handNumber}</span>
+                    <span>Round {gameState.roundNumber}</span>
                     <span class="w-1 h-1 bg-green-400 rounded-full"></span>
-                    {#if $gameState.gamePhase === GamePhase.PASSING}
-                      <span class="text-yellow-300">Passing Phase</span>
+                    {#if gameState.passingPhase}
+                      <span class="text-yellow-300">Pass {passingDirection}</span>
                     {:else}
-                      <span class="text-white font-medium">{$gameState.players[$gameState.currentPlayerTurn].name}'s Turn</span>
+                      <span class="text-white font-medium">{players[gameState.currentPlayerIndex].name}'s Turn</span>
                     {/if}
                   </div>
                 </div>
                 
                 <!-- Game Status -->
                 <div class="text-white text-sm space-y-1 border-t border-white border-opacity-20 pt-2">
-                  {#if $gameState.gamePhase === GamePhase.PASSING}
+                  {#if gameState.passingPhase}
                     <div class="text-yellow-300 font-medium">Passing Phase</div>
-                    <div class="text-green-200">Choose 3 cards to pass</div>
-                  {:else if $gameState.currentPlayerTurn !== 0}
+                    <div class="text-green-200">Choose 3 cards to pass {passingDirection}</div>
+                  {:else if gameState.currentPlayerIndex !== 0}
                     <div class="text-blue-300 font-medium">Waiting...</div>
-                    <div class="text-green-200">{$gameState.players[$gameState.currentPlayerTurn].name} is playing</div>
+                    <div class="text-green-200">{players[gameState.currentPlayerIndex].name} is playing</div>
                   {:else}
                     <div class="text-green-300 font-medium">Your Turn</div>
                     <div class="text-green-200">Choose a card to play</div>
@@ -286,11 +549,9 @@
             <!-- Scoreboard using component -->
             <div class="order-3">
               <ScoreBoard 
-                scores={$gameState.players.reduce((acc, player) => {
-                  acc[player.name] = player.score;
-                  return acc;
-                }, {})}
-                roundNumber={$gameState.handNumber}
+                scores={scores} 
+                roundScores={roundScores} 
+                roundNumber={gameState.roundNumber} 
               />
             </div>
           </div>
@@ -303,7 +564,6 @@
     <WelcomeScreen 
       currentUser={currentUser}
       on:startGame={handleStartGame}
-      rooms={$availableRooms}
       on:createGame={handleCreateGame}
       on:joinGame={handleJoinGame}
       on:showLogin={handleShowLogin}
