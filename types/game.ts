@@ -41,10 +41,11 @@ export interface PlayerPublicInfo {
 // Game phase to track current state of the game
 export enum GamePhase {
     WAITING_FOR_PLAYERS = 'WAITING_FOR_PLAYERS',
-    DEALING = 'DEALING',
+    INITIALIZING = 'INITIALIZING',
+    PASSING = 'PASSING',
     PLAYING = 'PLAYING',
-    HAND_COMPLETE = 'HAND_COMPLETE',
-    GAME_OVER = 'GAME_OVER'
+    SCORING = 'SCORING',
+    FINISHED = 'FINISHED'
 }
 
 // Client-side game state (what each player sees)

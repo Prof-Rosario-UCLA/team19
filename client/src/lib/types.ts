@@ -1,45 +1,19 @@
 // lib/types.ts
-export type CardType = {
-  suit: "hearts" | "diamonds" | "clubs" | "spades";
-  rank: number | "J" | "Q" | "K" | "A";
-};
+import { Suit, Rank, Card, PlayerPublicInfo, GamePhase, ClientGameState, RoomInfo } from '../../../types/game';
 
-export type PlayerType = {
-  name: string;
-  isHuman: boolean;
-  hand: CardType[];
-  score: number;
-};
-
-export type GameState = {
-  roundNumber: number;
-  passingDirection: "left" | "right" | "across" | "none";
-  currentPlayerIndex: number;
-  players: string[];
-  hands: { [player: string]: CardType[] };
-  scores: { [player: string]: number };
-  roundScores: { [player: string]: number };
-  currentTrick: { player: string, card: CardType }[];
-  trickWinner: string | null;
-  heartsBroken: boolean;
-  passingPhase: boolean;
-  gameStarted: boolean;
-  gameOver: boolean;
-};
+// Re-export types to be used in the client
+export type { Card, PlayerPublicInfo, GamePhase,ClientGameState, RoomInfo };
 
 // Event types for component communication
 export interface CardPlayEvent {
-  player: string;
-  card: CardType;
+    card: Card;
 }
 
 export interface PassingEvent {
-  player: string;
-  cards: CardType[];
+    cards: Card[];
 }
 
 export interface ReadyToPassEvent {
-  player: string;
-  ready: boolean;
-  selectedCards: CardType[];
+    ready: boolean;
+    selectedCards: Card[];
 }
