@@ -57,11 +57,7 @@
     isConnecting = true;
     connectionError = '';
 
-    const socketUrl = window.location.hostname === 'localhost'
-            ? 'http://localhost:3000'
-            : 'https://team19.cs144.org';
-
-    socket = io(socketUrl);
+    socket = io(window.location.origin);
 
     socket.on('connect', () => {
       connectionStatus = 'Connected';
