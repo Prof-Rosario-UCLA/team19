@@ -71,16 +71,6 @@
     });
   }
 
-  // Check for existing auth token on load
-  function checkExistingAuth() {
-    const token = localStorage.getItem('hearts_token');
-    if (token) {
-      authToken = token;
-      // Could validate token with server here
-      // For now, just assume it's valid
-    }
-  }
-
   // Initialize scores
   players.forEach(player => {
     roundScores[player.name] = 0;
@@ -381,6 +371,46 @@
 
     // Clear stored token
     localStorage.removeItem('hearts_token');
+  }
+
+  async function checkExistingAuth() {
+    const token = localStorage.getItem('hearts_token');
+    if (token) {
+      try {
+        // Validate token with server
+        const response = await fetch('/api/auth/validate', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Token is valid, restore user session
+          currentUser = data.data.user;
+          authToken = token;
+          isLoggedIn = true;
+          console.log('Session restored for:', currentUser.username);
+        } else {
+          // Token is invalid, clear it
+          console.log('Invalid token, clearing session');
+          localStorage.removeItem('hearts_token');
+          authToken = null;
+          currentUser = null;
+          isLoggedIn = false;
+        }
+      } catch (error) {
+        console.error('Error validating token:', error);
+        // Clear invalid token
+        localStorage.removeItem('hearts_token');
+        authToken = null;
+        currentUser = null;
+        isLoggedIn = false;
+      }
+    }
   }
 
   // Check for existing auth on component mount

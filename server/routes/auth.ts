@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { successResponse, errorResponse } from '../utils/responses.js';
 import {
     getUserByAuthId,
+    getUserById,
     createInternalAuthUser,
     validateInternalAuthUser,
     checkInternalAuthExists
@@ -146,6 +147,57 @@ router.post('/login', async (req: any, res: any) => {
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json(errorResponse('LOGIN_FAILED', 'Login failed'));
+    }
+});
+
+// Token validation endpoint
+router.get('/validate', async (req: any, res: any) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json(errorResponse('NO_TOKEN', 'No token provided'));
+        }
+
+        // Verify JWT token
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+
+        // Get fresh user data from database
+        let user = null;
+        if (decoded.user_id) {
+            user = await getUserById(decoded.user_id);
+        }
+        if (!user && decoded.auth_id && decoded.auth_provider) {
+            user = await getUserByAuthId(decoded.auth_id, decoded.auth_provider);
+        }
+
+        if (!user) {
+            return res.status(401).json(errorResponse('USER_NOT_FOUND', 'User not found'));
+        }
+
+        res.json(successResponse({
+            user: {
+                user_id: user.user_id,
+                username: user.username,
+                email: user.email,
+                avatar_url: user.avatar_url,
+                rating: user.rating,
+                join_date: user.join_date
+            },
+            token_valid: true
+        }, 'Token is valid'));
+
+    } catch (error: any) {
+        console.error('Token validation error:', error.message);
+
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json(errorResponse('INVALID_TOKEN', 'Invalid token'));
+        }
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json(errorResponse('TOKEN_EXPIRED', 'Token expired'));
+        }
+
+        return res.status(401).json(errorResponse('VALIDATION_FAILED', 'Token validation failed'));
     }
 });
 

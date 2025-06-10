@@ -465,6 +465,7 @@
                 <button
                         class="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
                         on:click={toggleCreateInput}
+                        disabled={!socket?.connected}
                 >
                   🌐 Create Online Room
                   {#if isLoggedIn}

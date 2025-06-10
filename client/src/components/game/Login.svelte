@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -124,6 +124,26 @@
   function playAsGuest() {
     dispatch('playAsGuest');
   }
+
+  let hasConsented = false;
+  let showConsent = false;
+
+  // Check if user has already consented
+  onMount(() => {
+    const consent = localStorage.getItem('hearts_consent');
+    hasConsented = consent === 'true';
+    showConsent = !hasConsented;
+  });
+
+  function acceptConsent() {
+    hasConsented = true;
+    showConsent = false;
+    localStorage.setItem('hearts_consent', 'true');
+  }
+
+  function declineConsent() {
+    alert('You need to accept our privacy policy to create an account. You can still play as a guest!');
+  }
 </script>
 
 <div class="min-h-screen flex items-center justify-center p-4">
@@ -147,84 +167,116 @@
         </div>
       {/if}
 
-      <!-- Login/Signup Form -->
-      <form on:submit|preventDefault={handleSubmit} class="space-y-4">
-        <!-- Username Field -->
-        <div>
-          <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
-            Username
-          </label>
-          <input
-                  id="username"
-                  type="text"
-                  bind:value={username}
-                  on:keydown={handleKeydown}
-                  placeholder="Enter your username"
-                  maxlength="20"
-                  disabled={loading}
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 transition-colors"
-          />
+      {#if showConsent}
+        <!-- Consent Banner -->
+        <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div class="text-sm text-gray-700">
+            <h3 class="font-semibold mb-2">Privacy & Data Usage</h3>
+            <p class="mb-3">
+              We collect your username, email, and game statistics to provide a personalized gaming experience. This data is stored securely and not shared with third parties.
+              We use localStorage to maintain your login session. Our practices comply with applicable data protection laws, including the GDPR and CCPA.
+            </p>
+            <div class="flex gap-3">
+              <button
+                      on:click={acceptConsent}
+                      class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium"
+              >
+                Accept & Continue
+              </button>
+              <button
+                      on:click={declineConsent}
+                      class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium"
+              >
+                Decline
+              </button>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">
+              You can play as a guest without creating an account.
+            </p>
+          </div>
         </div>
+      {/if}
 
-        <!-- Email Field (only for account creation) -->
-        {#if isCreatingAccount}
+      <!-- Only show login form after consent -->
+      {#if hasConsented || !showConsent}
+        <!-- Login/Signup Form -->
+        <form on:submit|preventDefault={handleSubmit} class="space-y-4">
+          <!-- Username Field -->
           <div>
-            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
-              Email
+            <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
+              Username
             </label>
             <input
-                    id="email"
-                    type="email"
-                    bind:value={email}
+                    id="username"
+                    type="text"
+                    bind:value={username}
                     on:keydown={handleKeydown}
-                    placeholder="Enter your email"
+                    placeholder="Enter your username"
+                    maxlength="20"
                     disabled={loading}
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 transition-colors"
             />
           </div>
-        {/if}
 
-        <!-- Password Field -->
-        <div>
-          <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
-          <input
-                  id="password"
-                  type="password"
-                  bind:value={password}
-                  on:keydown={handleKeydown}
-                  placeholder="Enter your password"
-                  disabled={loading}
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 transition-colors"
-          />
-        </div>
+          <!-- Email Field (only for account creation) -->
+          {#if isCreatingAccount}
+            <div>
+              <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <input
+                      id="email"
+                      type="email"
+                      bind:value={email}
+                      on:keydown={handleKeydown}
+                      placeholder="Enter your email"
+                      disabled={loading}
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 transition-colors"
+              />
+            </div>
+          {/if}
 
-        <!-- Confirm Password Field (only for account creation) -->
-        {#if isCreatingAccount}
+          <!-- Password Field -->
           <div>
-            <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">
-              Confirm Password
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+              Password
             </label>
             <input
-                    id="confirmPassword"
+                    id="password"
                     type="password"
-                    bind:value={confirmPassword}
+                    bind:value={password}
                     on:keydown={handleKeydown}
-                    placeholder="Confirm your password"
+                    placeholder="Enter your password"
                     disabled={loading}
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 transition-colors"
             />
           </div>
-        {/if}
 
-        <!-- Submit Button -->
-        <button
-                type="submit"
-                disabled={loading}
-                class="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg shadow-lg transition-all transform hover:scale-105 disabled:hover:scale-100 text-lg font-semibold disabled:cursor-not-allowed"
-        >
-          {#if loading}
+          <!-- Confirm Password Field (only for account creation) -->
+          {#if isCreatingAccount}
+            <div>
+              <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">
+                Confirm Password
+              </label>
+              <input
+                      id="confirmPassword"
+                      type="password"
+                      bind:value={confirmPassword}
+                      on:keydown={handleKeydown}
+                      placeholder="Confirm your password"
+                      disabled={loading}
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 transition-colors"
+              />
+            </div>
+          {/if}
+
+          <!-- Submit Button -->
+          <button
+                  type="submit"
+                  disabled={loading}
+                  class="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg shadow-lg transition-all transform hover:scale-105 disabled:hover:scale-100 text-lg font-semibold disabled:cursor-not-allowed"
+          >
+            {#if loading}
             <span class="flex items-center justify-center gap-2">
               <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
@@ -232,11 +284,12 @@
               </svg>
               {isCreatingAccount ? 'Creating Account...' : 'Signing In...'}
             </span>
-          {:else}
-            {isCreatingAccount ? '🎮 Create Account' : '🔓 Sign In'}
-          {/if}
-        </button>
-      </form>
+            {:else}
+              {isCreatingAccount ? '🎮 Create Account' : '🔓 Sign In'}
+            {/if}
+          </button>
+        </form>
+      {/if}
 
       <!-- Toggle Between Login/Signup -->
       <div class="mt-6 text-center">
