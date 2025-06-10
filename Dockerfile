@@ -62,7 +62,8 @@ RUN chown -R nodejs:nodejs /app
 USER nodejs
 
 # Set working directory to server for startup
-WORKDIR /app/server
+WORKDIR /app
+COPY server/dist/ ./server/dist/
 
 # Expose port 3000
 EXPOSE 3000
