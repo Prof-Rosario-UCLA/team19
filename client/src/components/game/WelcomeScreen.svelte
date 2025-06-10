@@ -469,7 +469,7 @@
                 >
                   🌐 Create Online Room
                   {#if isLoggedIn}
-                    <span class="text-sm font-normal">(Persistent Room)</span>
+                    <span class="text-sm font-normal">(Connect first)</span>
                   {:else if !socket?.connected}
                     <span class="text-sm font-normal">(Connect first)</span>
                   {/if}

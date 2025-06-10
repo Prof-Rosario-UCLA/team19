@@ -402,26 +402,26 @@ export const addBotToRoom = async (game_id: number, bot_name: string) => {
 
 export const getLeaderboard = async (limit: number = 100, offset: number = 0) => {
     const result = await query(
-        `SELECT 
-            u.user_id,
-            u.username,
-            u.rating,
-            u.avatar_url,
-            u.join_date,
-            COUNT(p.player_id) as games_played,
-            COUNT(CASE WHEN p.placement = 1 THEN 1 END) as wins,
-            CASE 
-                WHEN COUNT(p.player_id) > 0 
-                THEN ROUND((COUNT(CASE WHEN p.placement = 1 THEN 1 END)::float / COUNT(p.player_id)::float) * 100, 1)
-                ELSE 0 
-            END as win_percentage
+        `SELECT
+             u.user_id,
+             u.username,
+             u.rating,
+             u.avatar_url,
+             u.join_date,
+             COUNT(p.player_id) as games_played,
+             COUNT(CASE WHEN p.placement = 1 THEN 1 END) as wins,
+             CASE
+                 WHEN COUNT(p.player_id) > 0
+                     THEN ROUND(CAST((COUNT(CASE WHEN p.placement = 1 THEN 1 END)::float / COUNT(p.player_id)::float) * 100 AS numeric), 1)
+                 ELSE 0
+                 END as win_percentage
          FROM "user" u
-         LEFT JOIN player p ON u.user_id = p.user_id
-         LEFT JOIN room r ON p.game_id = r.game_id AND r.status = 'completed'
+                  LEFT JOIN player p ON u.user_id = p.user_id
+                  LEFT JOIN room r ON p.game_id = r.game_id AND r.status = 'completed'
          WHERE u.username IS NOT NULL
          GROUP BY u.user_id, u.username, u.rating, u.avatar_url, u.join_date
          ORDER BY u.rating DESC, wins DESC
-         LIMIT $1 OFFSET $2`,
+             LIMIT $1 OFFSET $2`,
         [limit, offset]
     );
     return result.rows;
