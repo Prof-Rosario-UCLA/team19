@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { query } from './connection.js';
 
 // ============================
@@ -501,4 +502,91 @@ export const calculateAndUpdateRatings = async (game_id: number) => {
     }
 
     return ratingChanges;
+};
+
+// ============================
+// INTERNAL AUTH QUERIES
+// ============================
+
+export const createInternalAuthUser = async (userData: {
+    username: string;
+    email: string;
+    password: string;
+}) => {
+    // Hash the password
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(userData.password, saltRounds);
+
+    // Insert into internal_auth table
+    const authResult = await query(
+        `INSERT INTO internal_auth (username, email, password_hash)
+         VALUES ($1, $2, $3)
+         RETURNING auth_id, username, email, created_at`,
+        [userData.username, userData.email, password_hash]
+    );
+
+    const authUser = authResult.rows[0];
+
+    // Create user in main user table
+    const userResult = await query(
+        `INSERT INTO "user" (auth_id, auth_provider, username, email, rating)
+         VALUES ($1, 'internal', $2, $3, 1000)
+         RETURNING user_id, username, email, avatar_url, join_date, rating`,
+        [authUser.auth_id.toString(), authUser.username, authUser.email]
+    );
+
+    return {
+        auth_user: authUser,
+        user: userResult.rows[0]
+    };
+};
+
+export const validateInternalAuthUser = async (usernameOrEmail: string, password: string) => {
+    // Check if it's an email or username
+    const isEmail = usernameOrEmail.includes('@');
+    const field = isEmail ? 'email' : 'username';
+
+    // Get auth record
+    const authResult = await query(
+        `SELECT auth_id, username, email, password_hash 
+         FROM internal_auth 
+         WHERE ${field} = $1`,
+        [usernameOrEmail]
+    );
+
+    if (authResult.rows.length === 0) {
+        return null; // User not found
+    }
+
+    const authUser = authResult.rows[0];
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, authUser.password_hash);
+    if (!isValidPassword) {
+        return null; // Invalid password
+    }
+
+    // Get full user record
+    const userResult = await query(
+        `SELECT user_id, auth_id, auth_provider, username, email, avatar_url, join_date, rating
+         FROM "user" 
+         WHERE auth_id = $1 AND auth_provider = 'internal'`,
+        [authUser.auth_id.toString()]
+    );
+
+    return userResult.rows[0] || null;
+};
+
+export const checkInternalAuthExists = async (username: string, email: string) => {
+    const result = await query(
+        `SELECT 
+            CASE WHEN EXISTS(SELECT 1 FROM internal_auth WHERE username = $1) THEN 'username' END as username_exists,
+            CASE WHEN EXISTS(SELECT 1 FROM internal_auth WHERE email = $2) THEN 'email' END as email_exists`,
+        [username, email]
+    );
+
+    return {
+        username_exists: !!result.rows[0].username_exists,
+        email_exists: !!result.rows[0].email_exists
+    };
 };
