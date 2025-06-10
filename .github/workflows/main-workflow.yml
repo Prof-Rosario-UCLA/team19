@@ -104,6 +104,7 @@ jobs:
     needs: nightly-integration
     if: always() && (needs.nightly-integration.result == 'success' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
@@ -131,7 +132,14 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build --platform linux/amd64 -t hearts-game-server .
+          docker build --platform linux/amd64 \
+            --build-arg DB_HOST="${{ secrets.DB_HOST }}" \
+            --build-arg DB_NAME="${{ secrets.DB_NAME }}" \
+            --build-arg DB_USER="${{ secrets.DB_USER }}" \
+            --build-arg DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            --build-arg JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            --build-arg NODE_ENV="production" \
+            -t hearts-game-server .
           docker tag hearts-game-server gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:${{ github.sha }}
           docker tag hearts-game-server gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:latest
           docker push gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:${{ github.sha }}
@@ -146,9 +154,18 @@ jobs:
 
       - name: Deploy to GKE
         run: |
+          kubectl delete secret hearts-app-secrets --ignore-not-found=true
+          kubectl create secret generic hearts-app-secrets \
+            --from-literal=DB_HOST="${{ secrets.DB_HOST }}" \
+            --from-literal=DB_NAME="${{ secrets.DB_NAME }}" \
+            --from-literal=DB_USER="${{ secrets.DB_USER }}" \
+            --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}"
+          
           kubectl apply -f kubernetes/deployment.yaml
-          kubectl apply -f kubernetes/ingress.yaml
           kubectl apply -f kubernetes/service.yaml
+          kubectl apply -f kubernetes/ingress.yaml
+          
           kubectl set image deployment/hearts-game-deployment hearts-game-server=gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:${{ github.sha }}
           kubectl rollout status deployment/hearts-game-deployment
           kubectl get services
@@ -156,5 +173,6 @@ jobs:
       - name: Output deployment info
         run: |
           echo "Deployment complete!"
-          echo "Ingress IP: $(kubectl get ingress hearts-https -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+          echo "Service IP: $(kubectl get service hearts-game-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo 'Not available')"
+          echo "Ingress IP: $(kubectl get ingress hearts-https -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo 'Not available')"
           echo "Visit: https://team19.cs144.org"
