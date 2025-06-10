@@ -25,6 +25,7 @@ node_modules/
 .env.*
 !.env.example
 gke-key.json
+server/.env
 
 # Logs
 logs
