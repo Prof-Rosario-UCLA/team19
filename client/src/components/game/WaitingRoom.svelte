@@ -1,15 +1,17 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import type { Socket } from 'socket.io-client';
-  
+
   export let socket: Socket | null = null;
   export let roomId: string = '';
   export let roomName: string = '';
   export let playerName: string = '';
-  export let currentUser: string | null = null;
+  export let currentUser: any = null; // Now expects user object
+  export let authToken: string | null = null;
+  export let isLoggedIn: boolean = false;
 
   const dispatch = createEventDispatcher();
-  
+
   let playerCount = 1;
   let roomData: any = null;
   let players: Array<{ name: string; index: number; isYou: boolean }> = [];
@@ -19,38 +21,78 @@
   // Polling interval for room updates
   let pollInterval: number;
 
+  // Helper function to make authenticated API calls
+  function makeAuthenticatedRequest(url: string, options: any = {}) {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers
+    };
+
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    return fetch(url, {
+      ...options,
+      headers
+    });
+  }
+
   function updateRoomInfo() {
     if (!socket?.connected || !roomId) return;
-    
+
     socket.emit('get_rooms', (rooms: any[]) => {
       const currentRoom = rooms.find(room => room.id === roomId);
       if (currentRoom) {
         playerCount = currentRoom.playerCount;
-        
-        // If we have 4 players, the game should start soon
+
         if (playerCount === 4 && !gameStarting) {
           gameStarting = true;
           setTimeout(() => {
             dispatch('gameReady', { roomId });
-          }, 2000); // Give a 2-second countdown
+          }, 2000);
         }
       }
     });
   }
 
-  function leaveRoom() {
+  async function leaveRoom() {
     if (socket?.connected) {
-      // Disconnect from socket room
-      socket.emit('leave_room', { roomId }, (response: any) => {
-        console.log('Left room:', response);
+      // Leave socket room
+      const leaveData = {
+        roomId,
+        ...(isLoggedIn && currentUser ? {
+          user: {
+            user_id: currentUser.user_id,
+            username: currentUser.username
+          }
+        } : {})
+      };
+
+      socket.emit('leave_room', leaveData, (response: any) => {
+        console.log('Left socket room:', response);
       });
     }
+
+    // Also leave via REST API if logged in
+    if (isLoggedIn && authToken) {
+      try {
+        const response = await makeAuthenticatedRequest(`/api/rooms/${roomId}/leave`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+        console.log('Left room via API:', data);
+      } catch (error) {
+        console.error('Error leaving room via API:', error);
+      }
+    }
+
     dispatch('leaveRoom');
   }
 
   function copyRoomCode() {
     navigator.clipboard.writeText(roomId).then(() => {
-      // Could add a toast notification here
       console.log('Room code copied to clipboard');
     }).catch(() => {
       console.log('Failed to copy room code');
@@ -65,8 +107,7 @@
       const currentRoom = rooms.find(room => room.id === roomId);
       if (currentRoom) {
         playerCount = currentRoom.playerCount;
-        
-        // Check if game should start
+
         if (playerCount === 4 && !gameStarting) {
           gameStarting = true;
           setTimeout(() => {
@@ -78,10 +119,9 @@
 
     socket.on('game_state_updated', (data: any) => {
       console.log('Game state updated in waiting room:', data);
-      // Game has started, transition to game
-      dispatch('gameStarted', { 
+      dispatch('gameStarted', {
         gameState: data.gameState,
-        roomId 
+        roomId
       });
     });
 
@@ -105,8 +145,7 @@
   onMount(() => {
     setupSocketListeners();
     updateRoomInfo();
-    
-    // Poll for updates every 2 seconds as backup
+
     pollInterval = setInterval(updateRoomInfo, 2000);
   });
 
@@ -136,7 +175,8 @@
       <div class="bg-black bg-opacity-40 rounded-lg p-3 text-white">
         <div class="text-sm">
           <div class="text-green-300 font-medium">Welcome back!</div>
-          <div class="text-white">{currentUser}</div>
+          <div class="text-white">{currentUser.username}</div>
+          <div class="text-gray-300 text-xs">Rating: {currentUser.rating}</div>
         </div>
       </div>
     </div>
@@ -147,6 +187,9 @@
     <div class="bg-black bg-opacity-40 rounded-lg p-2 text-white text-sm flex items-center gap-2">
       <div class="w-2 h-2 rounded-full bg-green-500"></div>
       <span>Connected</span>
+      {#if isLoggedIn}
+        <span class="text-xs bg-blue-600 px-2 py-1 rounded">Logged In</span>
+      {/if}
     </div>
   </div>
 
@@ -167,15 +210,18 @@
             <div class="flex items-center justify-center gap-2 mb-3">
               <span class="text-gray-600">Room Code:</span>
               <code class="bg-gray-800 text-green-400 px-3 py-1 rounded font-mono text-lg tracking-wider">{roomId}</code>
-              <button 
-                on:click={copyRoomCode}
-                class="text-blue-600 hover:text-blue-800 text-sm underline"
-                title="Copy room code"
+              <button
+                      on:click={copyRoomCode}
+                      class="text-blue-600 hover:text-blue-800 text-sm underline"
+                      title="Copy room code"
               >
                 Copy
               </button>
             </div>
             <p class="text-gray-600 text-sm">Share this code with friends to join!</p>
+            {#if isLoggedIn}
+              <p class="text-green-600 text-xs mt-1">✓ This room will be saved to your account</p>
+            {/if}
           </div>
 
           <!-- Progress Bar -->
@@ -185,9 +231,9 @@
               <span>{playerCount}/4</span>
             </div>
             <div class="w-full bg-gray-200 rounded-full h-3">
-              <div 
-                class="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full transition-all duration-500 ease-out"
-                style="width: {progress}%"
+              <div
+                      class="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full transition-all duration-500 ease-out"
+                      style="width: {progress}%"
               ></div>
             </div>
           </div>
@@ -201,6 +247,9 @@
                   <span class="font-medium {player.name === 'Waiting...' ? 'text-gray-500 italic' : 'text-gray-800'}">{player.name}</span>
                   {#if player.isYou}
                     <span class="text-xs bg-green-500 text-white px-2 py-1 rounded-full">You</span>
+                    {#if isLoggedIn}
+                      <span class="text-xs bg-blue-500 text-white px-1 py-0.5 rounded">★</span>
+                    {/if}
                   {/if}
                 </div>
               </div>
@@ -230,16 +279,16 @@
 
         <!-- Action Buttons -->
         <div class="flex gap-4 justify-center">
-          <button 
-            on:click={leaveRoom}
-            class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors font-medium"
+          <button
+                  on:click={leaveRoom}
+                  class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors font-medium"
           >
             Leave Room
           </button>
-          
-          <button 
-            on:click={copyRoomCode}
-            class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+
+          <button
+                  on:click={copyRoomCode}
+                  class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
           >
             Copy Room Code
           </button>
@@ -248,6 +297,9 @@
         <!-- Footer Info -->
         <div class="text-center text-xs text-gray-500 mt-6">
           <p>The game will start automatically when 4 players join</p>
+          {#if isLoggedIn}
+            <p class="text-green-600 mt-1">Your stats will be tracked for this game</p>
+          {/if}
         </div>
       </div>
     </div>

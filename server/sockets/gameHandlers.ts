@@ -26,43 +26,51 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         }
     });
 
-    // Create a new room
-    socket.on('create_room', async ({ name, hostUser }: {
+    // Create a new room or use existing room from REST API
+    socket.on('create_room', async ({ name, hostUser, existingRoomCode }: {
         name: string,
-        hostUser?: { user_id: number, username: string }
+        hostUser?: { user_id: number, username: string },
+        existingRoomCode?: string
     }, callback) => {
         try {
-            // Generate unique room code
-            const room_code = await generateUniqueRoomCode();
+            let room_code = existingRoomCode;
+            let dbRoom = null;
 
-            if (hostUser?.user_id) {
-                // Authenticated user - store in database
-                const dbRoom = await createRoom(room_code, hostUser.user_id);
-                await addPlayerToRoom(dbRoom.game_id, hostUser.user_id, hostUser.username, 'registered');
+            if (existingRoomCode) {
+                // Room was already created via REST API, just set up socket room
+                console.log('Using existing room from REST API:', existingRoomCode);
+                room_code = existingRoomCode;
 
-                // Also create in GameManager for real-time game state
-                const gameRoom = gameManager.createRoom(room_code, name);
-
-                if (gameRoom) {
-                    callback({
-                        success: true,
-                        roomId: room_code,
-                        gameId: dbRoom.game_id,
-                        joinUrl: `/join/${room_code}`
-                    });
-                    io.emit('rooms_updated', gameManager.getRooms());
-                } else {
-                    callback({ success: false, error: 'Failed to create game room' });
+                // Get the existing room from database
+                dbRoom = await getRoomByCode(room_code);
+                if (!dbRoom) {
+                    callback({ success: false, error: 'Room not found in database' });
+                    return;
                 }
             } else {
-                // Guest user - in memory for now
-                const room = gameManager.createRoom(room_code, name);
-                if (room) {
-                    callback({ success: true, roomId: room_code });
-                    io.emit('rooms_updated', gameManager.getRooms());
-                } else {
-                    callback({ success: false, error: 'Failed to create room' });
+                // Generate unique room code for new room
+                room_code = await generateUniqueRoomCode();
+
+                if (hostUser?.user_id) {
+                    // Authenticated user - store in database
+                    dbRoom = await createRoom(room_code, hostUser.user_id);
+                    await addPlayerToRoom(dbRoom.game_id, hostUser.user_id, hostUser.username, 'registered');
                 }
+            }
+
+            // Create in GameManager for real-time game state
+            const gameRoom = gameManager.createRoom(room_code, name);
+
+            if (gameRoom) {
+                callback({
+                    success: true,
+                    roomId: room_code,
+                    gameId: dbRoom?.game_id,
+                    joinUrl: `/join/${room_code}`
+                });
+                io.emit('rooms_updated', gameManager.getRooms());
+            } else {
+                callback({ success: false, error: 'Failed to create game room in memory' });
             }
         } catch (error) {
             console.error('Error creating room:', error);
@@ -98,8 +106,14 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
                     return;
                 }
 
-                // Add to database
-                await addPlayerToRoom(dbRoom.game_id, user.user_id, user.username, 'registered');
+                // Check if user is already in the room
+                const existingPlayer = await getPlayersInRoom(dbRoom.game_id);
+                const userAlreadyInRoom = existingPlayer.find(p => p.user_id === user.user_id);
+
+                if (!userAlreadyInRoom) {
+                    // Add to database
+                    await addPlayerToRoom(dbRoom.game_id, user.user_id, user.username, 'registered');
+                }
             }
 
             // Always try to join the GameManager room for real-time gameplay
@@ -120,7 +134,7 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
                 }
                 callback({ success: true });
             } else {
-                callback({ success: false, error: 'Failed to join room' });
+                callback({ success: false, error: 'Failed to join room - room may not exist in game manager' });
             }
         } catch (error) {
             console.error('Error joining room:', error);
