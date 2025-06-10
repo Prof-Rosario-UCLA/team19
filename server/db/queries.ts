@@ -29,36 +29,6 @@ export const getUserByUsername = async (username: string) => {
     return result.rows[0] || null;
 };
 
-export const getUserByEmail = async (email: string) => {
-    const result = await query(
-        'SELECT user_id, email FROM "user" WHERE email = $1',
-        [email]
-    );
-    return result.rows[0] || null;
-};
-
-export const createUser = async (userData: {
-    auth_id: string;
-    auth_provider: string;
-    username: string;
-    email: string;
-    avatar_url?: string;
-}) => {
-    const result = await query(
-        `INSERT INTO "user" (auth_id, auth_provider, username, email, avatar_url, rating)
-         VALUES ($1, $2, $3, $4, $5, 1000)
-             RETURNING user_id, username, email, avatar_url, join_date, rating`,
-        [
-            userData.auth_id,
-            userData.auth_provider,
-            userData.username,
-            userData.email,
-            userData.avatar_url || null
-        ]
-    );
-    return result.rows[0];
-};
-
 // ============================
 // USER PROFILE QUERIES
 // ============================
@@ -148,41 +118,6 @@ export const getUserStats = async (user_id: number) => {
         first_game_date: stats.first_game_date,
         avg_winning_score: parseFloat(stats.avg_winning_score) || 0,
         current_rating: parseInt(stats.current_rating) || 1000,
-    };
-};
-
-export const getUserGameHistory = async (user_id: number, limit: number = 10, offset: number = 0) => {
-    const gamesResult = await query(
-        `SELECT r.game_id, r.room_code, r.start_time, r.end_time, r.status,
-                p.score, p.placement, p.type,
-                (SELECT COUNT(*) FROM player WHERE game_id = r.game_id) as total_players,
-                (SELECT json_agg(
-                    json_build_object(
-                        'display_name', p2.display_name,
-                        'score', p2.score,
-                        'placement', p2.placement,
-                        'type', p2.type
-                    ) ORDER BY p2.placement
-                ) FROM player p2 WHERE p2.game_id = r.game_id AND p2.user_id != p.user_id) as other_players
-         FROM room r
-         JOIN player p ON r.game_id = p.game_id
-         WHERE p.user_id = $1 AND r.status = 'completed'
-         ORDER BY r.end_time DESC
-         LIMIT $2 OFFSET $3`,
-        [user_id, limit, offset]
-    );
-
-    const totalResult = await query(
-        `SELECT COUNT(*) as total
-         FROM room r
-         JOIN player p ON r.game_id = p.game_id
-         WHERE p.user_id = $1 AND r.status = 'completed'`,
-        [user_id]
-    );
-
-    return {
-        games: gamesResult.rows,
-        total: parseInt(totalResult.rows[0].total)
     };
 };
 
@@ -383,45 +318,31 @@ export const endGame = async (game_id: number, finalScores: { player_id: number;
 };
 
 // ============================
-// BOT MANAGEMENT QUERIES
-// ============================
-
-export const addBotToRoom = async (game_id: number, bot_name: string) => {
-    const result = await query(
-        `INSERT INTO player (game_id, user_id, display_name, score, type)
-         VALUES ($1, NULL, $2, 0, 'bot')
-         RETURNING player_id, game_id, display_name, score, type`,
-        [game_id, bot_name]
-    );
-    return result.rows[0];
-};
-
-// ============================
 // LEADERBOARD QUERIES
 // ============================
 
 export const getLeaderboard = async (limit: number = 100, offset: number = 0) => {
     const result = await query(
-        `SELECT 
-            u.user_id,
-            u.username,
-            u.rating,
-            u.avatar_url,
-            u.join_date,
-            COUNT(p.player_id) as games_played,
-            COUNT(CASE WHEN p.placement = 1 THEN 1 END) as wins,
-            CASE 
-                WHEN COUNT(p.player_id) > 0 
-                THEN ROUND((COUNT(CASE WHEN p.placement = 1 THEN 1 END)::float / COUNT(p.player_id)::float) * 100, 1)
-                ELSE 0 
-            END as win_percentage
+        `SELECT
+             u.user_id,
+             u.username,
+             u.rating,
+             u.avatar_url,
+             u.join_date,
+             COUNT(p.player_id) as games_played,
+             COUNT(CASE WHEN p.placement = 1 THEN 1 END) as wins,
+             CASE
+                 WHEN COUNT(p.player_id) > 0
+                     THEN ROUND(CAST((COUNT(CASE WHEN p.placement = 1 THEN 1 END)::float / COUNT(p.player_id)::float) * 100 AS numeric), 1)
+                 ELSE 0
+                 END as win_percentage
          FROM "user" u
-         LEFT JOIN player p ON u.user_id = p.user_id
-         LEFT JOIN room r ON p.game_id = r.game_id AND r.status = 'completed'
+                  LEFT JOIN player p ON u.user_id = p.user_id
+                  LEFT JOIN room r ON p.game_id = r.game_id AND r.status = 'completed'
          WHERE u.username IS NOT NULL
          GROUP BY u.user_id, u.username, u.rating, u.avatar_url, u.join_date
          ORDER BY u.rating DESC, wins DESC
-         LIMIT $1 OFFSET $2`,
+             LIMIT $1 OFFSET $2`,
         [limit, offset]
     );
     return result.rows;

@@ -6,7 +6,6 @@ import {
     getUserByUsername,
     updateUser,
     getUserStats,
-    getUserGameHistory
 } from '../db/queries.js';
 
 const router = Router();
@@ -115,46 +114,4 @@ router.get('/:user_id/stats', async (req: any, res: any) => {
         res.status(500).json(errorResponse('STATS_FETCH_FAILED', 'Failed to fetch user statistics'));
     }
 });
-
-// GET /api/users/:user_id/history - Get user game history
-router.get('/:user_id/history', async (req: any, res: any) => {
-    try {
-        const user_id = req.params.user_id;
-        const limit = req.query.limit || '10';
-        const offset = req.query.offset || '0';
-
-        // Validate user_id
-        const userId = parseInt(user_id);
-        if (isNaN(userId) || userId <= 0) {
-            return res.status(400).json(errorResponse('INVALID_USER_ID', 'Invalid user ID'));
-        }
-
-        // Validate limit and offset
-        const limitNum = parseInt(limit as string);
-        const offsetNum = parseInt(offset as string);
-
-        if (isNaN(limitNum) || limitNum <= 0 || limitNum > 50) {
-            return res.status(400).json(errorResponse('INVALID_LIMIT', 'Limit must be between 1 and 50'));
-        }
-
-        if (isNaN(offsetNum) || offsetNum < 0) {
-            return res.status(400).json(errorResponse('INVALID_OFFSET', 'Offset must be 0 or greater'));
-        }
-
-        // Check if user exists
-        const user = await getUserById(userId);
-        if (!user) {
-            return res.status(404).json(errorResponse('USER_NOT_FOUND', 'User not found'));
-        }
-
-        // Query completed games for this user with pagination
-        const { games, total } = await getUserGameHistory(userId, limitNum, offsetNum);
-
-        res.json(successResponse({ games, total, limit: limitNum, offset: offsetNum }));
-    } catch (error) {
-        console.error('Get user history error:', error);
-        res.status(500).json(errorResponse('HISTORY_FETCH_FAILED', 'Failed to fetch user game history'));
-    }
-});
-
 export default router;

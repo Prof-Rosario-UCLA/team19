@@ -201,9 +201,4 @@ router.get('/validate', async (req: any, res: any) => {
     }
 });
 
-// Test endpoint
-router.get('/test', (req, res) => {
-    res.json(successResponse({ message: 'Auth route working' }));
-});
-
 export default router;
