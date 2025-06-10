@@ -87,14 +87,25 @@ export function isValidPlay(
     heartsBroken: boolean,
     isFirstTrick: boolean
 ): boolean {
+    console.log('isValidPlay called with:', {
+        card,
+        handLength: hand.length,
+        currentTrickLength: currentTrick.length,
+        heartsBroken,
+        isFirstTrick
+    });
+
     // First trick special rules
     if (isFirstTrick) {
         if (currentTrick.length === 0) {
             // Game must start with 2 of Clubs
-            return card.suit === Suit.CLUBS && card.rank === Rank.TWO;
+            const isValid = card.suit === Suit.CLUBS && card.rank === Rank.TWO;
+            console.log('First trick leading card validation:', isValid);
+            return isValid;
         }
         // No hearts or Queen of Spades on first trick
         if (card.suit === Suit.HEARTS || (card.suit === Suit.SPADES && card.rank === Rank.QUEEN)) {
+            console.log('Invalid first trick card - hearts or queen of spades');
             return false;
         }
     }
@@ -104,7 +115,9 @@ export function isValidPlay(
         // Can't lead with Hearts unless Hearts are broken
         if (card.suit === Suit.HEARTS && !heartsBroken) {
             // Unless player only has Hearts left
-            return hand.every(c => c.suit === Suit.HEARTS);
+            const hasOnlyHearts = hand.every(c => c.suit === Suit.HEARTS);
+            console.log('Leading with hearts validation:', { heartsBroken, hasOnlyHearts });
+            return hasOnlyHearts;
         }
         return true;
     }
@@ -112,7 +125,9 @@ export function isValidPlay(
     // Must follow suit if possible
     const leadSuit = currentTrick[0].suit;
     if (hand.some(c => c.suit === leadSuit)) {
-        return card.suit === leadSuit;
+        const isValid = card.suit === leadSuit;
+        console.log('Following suit validation:', { leadSuit, cardSuit: card.suit, isValid });
+        return isValid;
     }
 
     // Can play any card if can't follow suit

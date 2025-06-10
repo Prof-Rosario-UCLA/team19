@@ -220,6 +220,21 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
             return;
         }
 
+        const playerIndex = room.players.get(socket.id);
+        if (playerIndex === undefined) {
+            callback({ success: false, error: 'Player not found in room' });
+            return;
+        }
+
+        // Log the attempt to play card
+        console.log(`Player ${playerIndex} attempting to play card:`, card);
+        console.log('Current game state:', {
+            phase: room.game.getCurrentPhase(),
+            currentPlayerIndex: room.game.getCurrentPlayerIndex(),
+            isFirstTrick: room.game.getGameState().isFirstTrick,
+            currentTrick: room.game.getGameState().currentTrick
+        });
+
         const success = gameManager.playCard(roomId, socket.id, card);
         if (success) {
             // Send individual game states to each player
@@ -233,6 +248,7 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
             });
             callback({ success: true });
         } else {
+            console.log('Play card failed for player', playerIndex);
             callback({ success: false, error: 'Invalid move' });
         }
     });

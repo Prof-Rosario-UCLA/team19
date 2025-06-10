@@ -89,9 +89,16 @@ export class Game {
     // Start the playing phase
     private startPlayingPhase(): void {
         this.currentPhase = GamePhase.PLAYING;
-        this.currentPlayerIndex = this.gameState.isFirstTrick ? 
-            findStartingPlayer(this.gameState) : // First trick starts with 2 of clubs
-            this.gameState.trickLeader;
+        
+        if (this.gameState.isFirstTrick) {
+            // For first trick, find player with 2 of Clubs and set as trick leader
+            const startingPlayer = findStartingPlayer(this.gameState);
+            this.currentPlayerIndex = startingPlayer;
+            console.log('Starting first trick with player', startingPlayer);
+        } else {
+            // For subsequent tricks, use the previous trick's winner
+            this.currentPlayerIndex = this.gameState.trickLeader;
+        }
     }
 
     // Get the current game state (for external use)
@@ -180,17 +187,32 @@ export class Game {
     public playCard(playerIndex: number, card: Card): boolean {
         // Validate that it's the playing phase and the correct player's turn
         if (this.currentPhase !== GamePhase.PLAYING || playerIndex !== this.currentPlayerIndex) {
+            console.log('Invalid phase or turn in Game.playCard:', {
+                phase: this.currentPhase,
+                currentPlayerIndex: this.currentPlayerIndex,
+                playerIndex
+            });
             return false;
         }
 
-        // Validate the play
-        if (!canPlayCard(this.gameState, playerIndex, card)) {
+        // Get valid moves for the player
+        const validMoves = this.getValidMoves(playerIndex);
+        console.log('Valid moves in Game.playCard:', validMoves);
+
+        // Check if the card is in valid moves
+        const isValidMove = validMoves.some(
+            validCard => validCard.suit === card.suit && validCard.rank === card.rank
+        );
+
+        if (!isValidMove) {
+            console.log('Invalid move in Game.playCard - card not in valid moves');
             return false;
         }
 
         // Play the card
         const updatedGameState = playCard(this.gameState, playerIndex, card);
         if (!updatedGameState) {
+            console.log('playCard function returned null');
             return false;
         }
         this.gameState = updatedGameState;

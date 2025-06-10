@@ -240,7 +240,7 @@
         function confirmAction() {
             if (!currentRoomId || !currentGameState) return;
 
-            if (isPassingPhase && selectedCards.length === 3) {
+            if (currentGameState.gamePhase === 'PASSING' && selectedCards.length === 3) {
                 socket.emit('select_passing_cards', { 
                     roomId: currentRoomId, 
                     cards: selectedCards 
@@ -253,22 +253,20 @@
                         log('Failed to select cards:', response.error);
                     }
                 });
+            } else if (currentGameState.gamePhase === 'PLAYING' && selectedCards.length === 1) {
+                socket.emit('play_card', { 
+                    roomId: currentRoomId, 
+                    card: selectedCards[0]
+                }, (response) => {
+                    if (response.success) {
+                        log('Card played:', selectedCards[0].suit, selectedCards[0].rank);
+                        selectedCards = [];
+                        updateUI();
+                    } else {
+                        log('Failed to play card:', response.error);
+                    }
+                });
             }
-        }
-
-        function playCard(card) {
-            if (!currentRoomId) return;
-
-            socket.emit('play_card', { 
-                roomId: currentRoomId, 
-                card 
-            }, (response) => {
-                if (response.success) {
-                    log('Card played:', card.suit, card.rank);
-                } else {
-                    log('Failed to play card:', response.error);
-                }
-            });
         }
 
         // UI updates
