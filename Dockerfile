@@ -39,8 +39,8 @@ WORKDIR /app
 COPY server/ ./server/
 
 # Build the server TypeScript code
-WORKDIR /app/server
-RUN npm run build
+WORKDIR /app
+COPY server/dist/ ./server/dist/
 
 # Copy the pre-built client files
 WORKDIR /app
@@ -62,8 +62,7 @@ RUN chown -R nodejs:nodejs /app
 USER nodejs
 
 # Set working directory to server for startup
-WORKDIR /app
-COPY server/dist/ ./server/dist/
+WORKDIR /app/server
 
 # Expose port 3000
 EXPOSE 3000
