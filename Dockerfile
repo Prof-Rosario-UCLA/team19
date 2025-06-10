@@ -23,35 +23,23 @@ ENV PORT=$PORT
 # Set working directory
 WORKDIR /app
 
-# Copy root package.json for shared dependencies
-COPY package*.json ./
-
-# Install root dependencies
-RUN npm ci
-
 # Copy server package.json and install server dependencies
 COPY server/package*.json ./server/
 WORKDIR /app/server
 RUN npm install --only=production
 
-# Go back to root and copy server source
+# Go back to root and copy pre-built files
 WORKDIR /app
-COPY server/ ./server/
 
-# Build the server TypeScript code
-WORKDIR /app
+# Copy the pre-built server files
 COPY server/dist/ ./server/dist/
 
 # Copy the pre-built client files
-WORKDIR /app
 COPY client/dist/ ./client/dist/
 
-# Clean up and remove root node_modules
-RUN rm -rf /app/node_modules
-
-# Reinstall only server production dependencies and clean up
+# Clean up and cache clean
 WORKDIR /app/server
-RUN npm install --only=production && npm cache clean --force
+RUN npm cache clean --force
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
