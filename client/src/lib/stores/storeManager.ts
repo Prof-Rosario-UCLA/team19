@@ -1,8 +1,8 @@
 import { get } from 'svelte/store';
 import { socket, initializeSocket, availableRooms } from './socket';
 import { gameState } from './gameStore';
-import type { GameStateUpdatePayload, RoomInfo } from '../../../../types/game.js';
-import { GamePhase } from '../../../../types/game.js';
+import type { GameStateUpdatePayload, RoomInfo } from '../../../../types/types.js';
+import { GamePhase } from '../../../../types/types.js';
 
 export function initializeStores() {
     const socketInstance = initializeSocket();

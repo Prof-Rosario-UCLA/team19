@@ -30,6 +30,27 @@ export interface Card {
     value: number;
 }
 
+// Player interface
+export interface Player {
+    id: string;
+    name: string;
+    hand: Card[];
+    score: number;
+}
+
+// Game state interface
+export interface GameState {
+    players: Player[];
+    deck: Card[];
+    currentTrick: Card[];
+    trickLeader: number; // Index of the player who led the current trick
+    heartsBroken: boolean;
+    scores: { [playerId: string]: number };
+    handNumber: number; // Track the current hand number (0-based)
+    isFirstTrick: boolean; // Track if this is the first trick of the hand
+    tricksPlayed: number; // Track number of tricks played in current hand
+}
+
 // Basic player info that can be shared with all clients
 export interface PlayerPublicInfo {
     id: string;

@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { GameManager } from '../game/GameManager.js';
-import { Card } from '../game/types.js';
+import { Card } from '../../types/types.js';
 import {
     generateUniqueRoomCode,
     createRoom,

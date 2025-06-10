@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { Card } from '../../../../types/game.js';
+import type { Card } from '../../../../types/types.js';
 
 interface GameUIState {
     selectedCards: Card[];

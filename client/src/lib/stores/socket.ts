@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 import { io, Socket } from 'socket.io-client';
-import type { GameStateUpdatePayload, RoomInfo } from '../../../../types/game.js';
+import type { GameStateUpdatePayload, RoomInfo } from '../../../../types/types.js';
 
 // Create a writable store for the socket connection
 export const socket = writable<Socket | null>(null);

@@ -1,5 +1,5 @@
 import { Game, GamePhase } from './Game.js';
-import { Card } from './types.js';
+import { Card } from '../../types/types.js';
 
 interface GameRoom {
     game: Game;

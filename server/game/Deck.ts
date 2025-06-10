@@ -1,4 +1,4 @@
-import { Card, Suit, Rank } from './types.js';
+import { Card, Suit, Rank } from '../../types/types.js';
 
 // Create a new deck of cards
 export function createDeck(): Card[] {

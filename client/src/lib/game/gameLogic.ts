@@ -1,7 +1,7 @@
 // CLIENT SIDE CHECKS FOR GAME LOGIC
 
-import type { ClientGameState, Card } from '../../../../types/game.js';
-import { GamePhase } from '../../../../types/game.js';
+import type { ClientGameState, Card } from '../../../../types/types.js';
+import { GamePhase } from '../../../../types/types.js';
 
 export function isPlayerTurn(gameState: ClientGameState, playerIndex: number): boolean {
     return gameState.currentPlayerTurn === playerIndex;

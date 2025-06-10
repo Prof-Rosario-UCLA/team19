@@ -1,6 +1,6 @@
 import { get, writable } from 'svelte/store';
-import { GamePhase } from '../../../../types/game.js';
-import type { ClientGameState, Card } from '../../../../types/game.js';
+import { GamePhase } from '../../../../types/types.js';
+import type { ClientGameState, Card } from '../../../../types/types.js';
 import { socket } from './socket.js';
 
 // Create the game state store with initial values
