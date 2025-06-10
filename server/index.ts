@@ -76,7 +76,7 @@ app.get('/api/health', async (req: Request, res: Response) => {
 // Static file serving (for production)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const clientDistPath = join(__dirname, '../client/dist');
+const clientDistPath = join(__dirname, '../public');
 
 // Serve static files from client/dist (built by the CI/CD)
 app.use(express.static(clientDistPath));
