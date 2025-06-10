@@ -13,9 +13,11 @@ on:
         required: false
         default: true
         type: boolean
+
 permissions:
   contents: write
   pull-requests: read
+
 jobs:
   build-and-test:
     if: |
@@ -28,27 +30,36 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.simulate_nightly == true)) && 'nightly' || github.ref }}
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18.x'
-      - name: Set up environment
+
+      - name: Install dependencies
         run: |
           npm install
-          cd server
-          npm install
-          cd ../client
-          npm install
-      - name: Build
+          cd server && npm install
+          cd ../client && npm install
+
+      - name: Build application
         run: |
+          echo "Building client and server..."
           node --loader ts-node/esm build.ts
-          echo "After build - server files:"
-          ls -la server/dist/ || echo "No server/dist"
-          echo "After build - client files:"
-          ls -la client/dist/ || echo "No client/dist"
+          
+          echo "Verifying build outputs..."
+          echo "Server dist files:"
+          ls -la server/dist/ || echo "No server/dist directory"
+          
+          echo "Client files (should be in server/public/):"
+          ls -la server/public/ || echo "No server/public directory"
+          
+          echo "Making sure index.html exists:"
+          find server/public/ -name "index.html" || echo "No index.html found"
+
       - name: Run unit tests
-        run: |
-          npm run test:unit
+        run: npm run test:unit
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -66,30 +77,47 @@ jobs:
         with:
           ref: nightly
           fetch-depth: 0
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
           path: dist/
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18.x'
-      - name: Set up environment for integration tests
+
+      - name: Install dependencies for integration tests
         run: |
           npm install
-          cd server
-          npm install
-          cd ../client
-          npm install
-      - name: Restore artifacts to correct locations
+          cd server && npm install
+          cd ../client && npm install
+
+      - name: Restore build artifacts for integration tests
         run: |
-          cp -r dist/server/dist/* server/dist/ 2>/dev/null || true
-          cp -r dist/server/public/* server/public/ 2>/dev/null || true
-          cp -r dist/client/dist/* client/dist/ 2>/dev/null || true
+          echo "Restoring build artifacts for integration tests..."
+          
+          # Restore server build
+          if [ -d "dist/server/dist" ]; then
+            cp -r dist/server/dist/* server/dist/
+            echo "Server dist files restored"
+          else
+            echo "No server dist files found"
+          fi
+          
+          # Restore client build
+          if [ -d "dist/server/public" ]; then
+            cp -r dist/server/public/* server/public/
+            echo "Client files restored to server/public/"
+          else
+            echo "No client files found in server/public/"
+          fi
+
       - name: Run integration tests
-        run: |
-          npm run test:integration
+        run: npm run test:integration
+
       - name: Merge nightly to main
         if: success()
         env:
@@ -117,30 +145,51 @@ jobs:
           name: build-artifacts
           path: dist/
 
-      - name: Debug available files
+      - name: Debug available artifacts
         run: |
-          echo "Contents of dist/:"
+          echo "Debugging available artifacts..."
+          echo "Artifact structure:"
           find dist/ -type f | head -20
-          echo "Directory structure:"
+          echo "Directories in dist/:"
           ls -la dist/
 
       - name: Restore build files for Docker
         run: |
-          # Create directories
+          echo "Restoring build files for Docker build..."
+          
+          # Create target directories
           mkdir -p server/dist
           mkdir -p server/public
           
-          # Copy server files
+          # Restore server build files
           if [ -d "dist/server/dist" ]; then
             cp -r dist/server/dist/* server/dist/
-            echo "Server files restored"
+            echo "Server build files restored"
+            echo "Server dist contents:"
+            ls -la server/dist/
+          else
+            echo "ERROR: No server build files found in dist/server/dist"
+            exit 1
           fi
           
-          # Copy client files
+          # Restore client build files  
           if [ -d "dist/server/public" ]; then
             cp -r dist/server/public/* server/public/
-            echo "Client files restored"
+            echo "Client build files restored"
+            echo "Client files contents:"
+            ls -la server/public/
+            echo "Index.html check:"
+            ls -la server/public/index.html || echo "No index.html found"
+          else
+            echo "ERROR: No client build files found in dist/server/public"
+            exit 1
           fi
+          
+          echo "Final verification - files ready for Docker:"
+          echo "server/dist/:"
+          ls -la server/dist/ | head -5
+          echo "server/public/:"
+          ls -la server/public/
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -155,6 +204,7 @@ jobs:
 
       - name: Build and push Docker image
         run: |
+          echo "Building Docker image..."
           docker build --platform linux/amd64 \
             --build-arg DB_HOST="${{ secrets.DB_HOST }}" \
             --build-arg DB_NAME="${{ secrets.DB_NAME }}" \
@@ -163,20 +213,25 @@ jobs:
             --build-arg JWT_SECRET="${{ secrets.JWT_SECRET }}" \
             --build-arg NODE_ENV="production" \
             -t hearts-game-server .
+          
+          echo "Tagging and pushing images..."
           docker tag hearts-game-server gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:${{ github.sha }}
           docker tag hearts-game-server gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:latest
           docker push gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:${{ github.sha }}
           docker push gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:latest
+          echo "Docker images pushed successfully"
 
       - name: Install gke-gcloud-auth-plugin
         run: gcloud components install gke-gcloud-auth-plugin
 
       - name: Get GKE credentials
-        run: |
-          gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER }} --zone=${{ secrets.GKE_ZONE }}
+        run: gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER }} --zone=${{ secrets.GKE_ZONE }}
 
       - name: Deploy to GKE
         run: |
+          echo "Deploying to Kubernetes..."
+          
+          # Update secrets
           kubectl delete secret hearts-app-secrets --ignore-not-found=true
           kubectl create secret generic hearts-app-secrets \
             --from-literal=DB_HOST="${{ secrets.DB_HOST }}" \
@@ -185,17 +240,30 @@ jobs:
             --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
             --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}"
           
+          # Apply configurations
           kubectl apply -f kubernetes/deployment.yaml
           kubectl apply -f kubernetes/service.yaml
           kubectl apply -f kubernetes/ingress.yaml
           
+          # Update deployment with new image
           kubectl set image deployment/hearts-game-deployment hearts-game-server=gcr.io/${{ secrets.GKE_PROJECT }}/hearts-game-server:${{ github.sha }}
+          
+          # Wait for rollout to complete
           kubectl rollout status deployment/hearts-game-deployment
-          kubectl get services
+          
+          echo "Deployment completed"
 
       - name: Output deployment info
         run: |
-          echo "Deployment complete!"
-          echo "Service IP: $(kubectl get service hearts-game-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo 'Not available')"
-          echo "Ingress IP: $(kubectl get ingress hearts-https -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo 'Not available')"
-          echo "Visit: https://team19.cs144.org"
+          echo "Deployment Summary:"
+          echo "====================="
+          kubectl get pods -l app=hearts-game
+          echo ""
+          echo "Services:"
+          kubectl get services hearts-game-service
+          echo ""
+          echo "Ingress:"
+          kubectl get ingress hearts-https
+          echo ""
+          echo "App should be available at: https://team19.cs144.org"
+          echo "Health check: https://team19.cs144.org/api/health"
