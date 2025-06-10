@@ -23,7 +23,7 @@ import {
     getGameWinner,
     canPlayCard
 } from '../../server/game/gameFlow.js';
-import { Card, Suit, Rank, GameState } from '../../server/game/types.js';
+import { Card, Suit, Rank, GameState } from '../../types/types.js';
 
 describe('GameFlow Module', () => {
     let sandbox: sinon.SinonSandbox;
@@ -441,7 +441,7 @@ describe('GameFlow Module', () => {
                     { suit: Suit.CLUBS, rank: Rank.QUEEN, value: 12 }
                 ];
 
-                const winner = determineTrickWinner(trick);
+                const winner = determineTrickWinner(trick, 0);
                 expect(winner.playerIndex).to.equal(1);
                 expect(winner.points).to.equal(0);
             });
@@ -454,13 +454,13 @@ describe('GameFlow Module', () => {
                     { suit: Suit.SPADES, rank: Rank.QUEEN, value: 12 }
                 ];
 
-                const winner = determineTrickWinner(trick);
+                const winner = determineTrickWinner(trick, 0);
                 expect(winner.playerIndex).to.equal(0);
                 expect(winner.points).to.equal(15);
             });
 
             it('handles empty trick', () => {
-                const winner = determineTrickWinner([]);
+                const winner = determineTrickWinner([], 0);
                 expect(winner.playerIndex).to.equal(0);
                 expect(winner.points).to.equal(0);
             });
@@ -473,7 +473,7 @@ describe('GameFlow Module', () => {
                     { suit: Suit.DIAMONDS, rank: Rank.ACE, value: 14 }
                 ];
 
-                const winner = determineTrickWinner(trick);
+                const winner = determineTrickWinner(trick, 0);
                 expect(winner.playerIndex).to.equal(2);
             });
         });

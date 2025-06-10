@@ -3,8 +3,9 @@ import {
     Player, 
     Card,
     Suit,
-    Rank
-} from './types.js';
+    Rank,
+    ClientGameState
+} from '../../types/types.js';
 import {
     PassingState,
     PassingDirection,
@@ -88,14 +89,55 @@ export class Game {
     // Start the playing phase
     private startPlayingPhase(): void {
         this.currentPhase = GamePhase.PLAYING;
-        this.currentPlayerIndex = this.gameState.isFirstTrick ? 
-            findStartingPlayer(this.gameState) : // First trick starts with 2 of clubs
-            this.gameState.trickLeader;
+        
+        if (this.gameState.isFirstTrick) {
+            // For first trick, find player with 2 of Clubs and set as trick leader
+            const startingPlayer = findStartingPlayer(this.gameState);
+            this.currentPlayerIndex = startingPlayer;
+            console.log('Starting first trick with player', startingPlayer);
+        } else {
+            // For subsequent tricks, use the previous trick's winner
+            this.currentPlayerIndex = this.gameState.trickLeader;
+        }
     }
 
     // Get the current game state (for external use)
     public getGameState(): GameState {
         return { ...this.gameState };
+    }
+
+    // Convert GameState to ClientGameState for a specific player
+    public getClientGameState(playerIndex: number): ClientGameState {
+        // Get basic game state info
+        const clientState: ClientGameState = {
+            players: this.gameState.players.map(player => ({
+                id: player.id,
+                name: player.name,
+                cardCount: player.hand.length,
+                score: player.score
+            })),
+            currentTrick: [...this.gameState.currentTrick],
+            trickLeader: this.gameState.trickLeader,
+            heartsBroken: this.gameState.heartsBroken,
+            handNumber: this.gameState.handNumber,
+            isFirstTrick: this.gameState.isFirstTrick,
+            tricksPlayed: this.gameState.tricksPlayed,
+            gamePhase: this.currentPhase,
+            currentPlayerTurn: this.currentPlayerIndex
+        };
+
+        // Add player-specific information
+        if (playerIndex >= 0 && playerIndex < this.gameState.players.length) {
+            // Add the player's own hand
+            clientState.myHand = [...this.gameState.players[playerIndex].hand];
+            
+            // Add valid moves if it's the player's turn
+            if (this.currentPhase === GamePhase.PLAYING && playerIndex === this.currentPlayerIndex) {
+                clientState.playableCards = this.getValidMoves(playerIndex);
+            }
+        }
+
+        return clientState;
     }
 
     // Get the current game phase
@@ -145,17 +187,32 @@ export class Game {
     public playCard(playerIndex: number, card: Card): boolean {
         // Validate that it's the playing phase and the correct player's turn
         if (this.currentPhase !== GamePhase.PLAYING || playerIndex !== this.currentPlayerIndex) {
+            console.log('Invalid phase or turn in Game.playCard:', {
+                phase: this.currentPhase,
+                currentPlayerIndex: this.currentPlayerIndex,
+                playerIndex
+            });
             return false;
         }
 
-        // Validate the play
-        if (!canPlayCard(this.gameState, playerIndex, card)) {
+        // Get valid moves for the player
+        const validMoves = this.getValidMoves(playerIndex);
+        console.log('Valid moves in Game.playCard:', validMoves);
+
+        // Check if the card is in valid moves
+        const isValidMove = validMoves.some(
+            validCard => validCard.suit === card.suit && validCard.rank === card.rank
+        );
+
+        if (!isValidMove) {
+            console.log('Invalid move in Game.playCard - card not in valid moves');
             return false;
         }
 
         // Play the card
         const updatedGameState = playCard(this.gameState, playerIndex, card);
         if (!updatedGameState) {
+            console.log('playCard function returned null');
             return false;
         }
         this.gameState = updatedGameState;
@@ -207,9 +264,46 @@ export class Game {
         }
 
         const player = this.gameState.players[playerIndex];
-        return player.hand.filter(card => 
-            canPlayCard(this.gameState, playerIndex, card)
-        );
+        
+        // First trick special case
+        if (this.gameState.isFirstTrick) {
+            // If leading the first trick, only 2 of clubs is playable
+            if (this.gameState.currentTrick.length === 0) {
+                return player.hand.filter(card => 
+                    card.suit === Suit.CLUBS && card.rank === Rank.TWO
+                );
+            }
+            // If not leading, can't play hearts or queen of spades
+            return player.hand.filter(card => 
+                card.suit !== Suit.HEARTS && 
+                !(card.suit === Suit.SPADES && card.rank === Rank.QUEEN)
+            );
+        }
+
+        // Regular trick logic
+        if (this.gameState.currentTrick.length === 0) {
+            // If leading a trick
+            if (!this.gameState.heartsBroken) {
+                // Can't lead with hearts unless hearts are broken
+                // Unless player only has hearts left
+                const hasOnlyHearts = player.hand.every(card => card.suit === Suit.HEARTS);
+                return hasOnlyHearts ? player.hand : 
+                    player.hand.filter(card => card.suit !== Suit.HEARTS);
+            }
+            // If hearts are broken, can lead with any card
+            return player.hand;
+        }
+
+        // If not leading, must follow suit if possible
+        const leadSuit = this.gameState.currentTrick[0].suit;
+        const canFollowSuit = player.hand.some(card => card.suit === leadSuit);
+        
+        if (canFollowSuit) {
+            return player.hand.filter(card => card.suit === leadSuit);
+        }
+        
+        // If can't follow suit, can play any card
+        return player.hand;
     }
 
     // Get the current passing direction (if in passing phase)
@@ -230,4 +324,6 @@ export class Game {
             Array.from(this.passingState.selectedCards.values()).length : 
             0;
     }
+
+    
 } 

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import * as sinon from 'sinon';
 import { Game, GamePhase } from '../../server/game/Game.js';
-import { Suit, Rank } from '../../server/game/types.js';
+import { Suit, Rank } from '../../types/types.js';
 
 describe('Game Module', () => {
     let sandbox: sinon.SinonSandbox;

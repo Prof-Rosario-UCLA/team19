@@ -2,7 +2,7 @@
 // This includes logic for the passing, playing, and scoring phases
 
 
-import { Card, Player, GameState, Suit, Rank } from './types.js';
+import { Card, Player, GameState, Suit, Rank } from '../../types/types.js';
 import { createDeck, dealCards, sortHand, calculateTrickPoints, isValidPlay } from './Deck.js';
 
 export enum PassingDirection {
@@ -196,13 +196,35 @@ export function getPlayersReadyToPass(passingState: PassingState): number {
         .length;
 }
 
-// Find the player with the Two of Clubs
+// Find the player with the Two of Clubs and set them as the trick leader
 export function findStartingPlayer(gameState: GameState): number {
-    return gameState.players.findIndex(player =>
+    const startingPlayerIndex = gameState.players.findIndex(player =>
         player.hand.some(card =>
             card.suit === Suit.CLUBS && card.rank === Rank.TWO
         )
     );
+    
+    if (startingPlayerIndex === -1) {
+        console.error('Could not find player with 2 of Clubs');
+        return 0;
+    }
+
+    // Set this player as the trick leader
+    gameState.trickLeader = startingPlayerIndex;
+    console.log(`Found starting player ${startingPlayerIndex} with 2 of Clubs, set as trick leader`);
+    
+    return startingPlayerIndex;
+}
+
+// Start the playing phase
+export function startPlayingPhase(gameState: GameState): GameState {
+    if (gameState.isFirstTrick) {
+        // For first trick, find player with 2 of Clubs
+        const startingPlayer = findStartingPlayer(gameState);
+        console.log('Starting first trick with player', startingPlayer);
+    }
+    
+    return gameState;
 }
 
 // Play a card in the current trick
@@ -211,6 +233,14 @@ export function playCard(
     playerIndex: number,
     card: Card
 ): GameState | null {
+    console.log('gameFlow.playCard called with:', {
+        playerIndex,
+        card,
+        currentTrick: gameState.currentTrick,
+        isFirstTrick: gameState.isFirstTrick,
+        heartsBroken: gameState.heartsBroken
+    });
+
     const player = gameState.players[playerIndex];
     
     // Validate the play
@@ -221,6 +251,7 @@ export function playCard(
         gameState.heartsBroken,
         gameState.isFirstTrick
     )) {
+        console.log('Invalid play in gameFlow.playCard');
         return null; // Invalid play
     }
     
@@ -241,29 +272,59 @@ export function playCard(
 }
 
 // Determine the winner of a trick
-export function determineTrickWinner(trick: Card[]): TrickWinner {
-    if (trick.length === 0) return { playerIndex: 0, points: 0 };
+export function determineTrickWinner(trick: Card[], trickLeader: number): TrickWinner {
+    if (trick.length === 0) return { playerIndex: trickLeader, points: 0 };
 
     const leadSuit = trick[0].suit;
     let highestValue = -1;
-    let winningIndex = 0;
+    let winningTrickIndex = 0;
     
-    trick.forEach((card, index) => {
-        if (card.suit === leadSuit && card.value > highestValue) {
-            highestValue = card.value;
-            winningIndex = index;
+    // Log the trick for debugging
+    console.log('Determining trick winner:', {
+        trick: trick.map(card => `${card.rank}${card.suit.charAt(0)}`),
+        leadSuit,
+        trickLeader
+    });
+    
+    // Find the highest card of the lead suit in the trick
+    trick.forEach((card, trickIndex) => {
+        // Only consider cards of the lead suit
+        if (card.suit === leadSuit) {
+            console.log(`Card ${card.rank}${card.suit.charAt(0)} is of lead suit, value: ${card.value}`);
+            if (card.value > highestValue) {
+                highestValue = card.value;
+                winningTrickIndex = trickIndex;
+                console.log(`New winning card: ${card.rank}${card.suit.charAt(0)} at trick index ${trickIndex}`);
+            }
+        } else {
+            console.log(`Card ${card.rank}${card.suit.charAt(0)} is not of lead suit, ignoring`);
         }
     });
     
+    // Convert trick index to actual player index
+    // The trick array is ordered starting from the trick leader
+    const winningPlayerIndex = (trickLeader + winningTrickIndex) % 4;
+    
+    const points = calculateTrickPoints(trick);
+    console.log(`Trick winner: player ${winningPlayerIndex} (trick index ${winningTrickIndex}) with ${points} points`);
+    
     return {
-        playerIndex: winningIndex,
-        points: calculateTrickPoints(trick)
+        playerIndex: winningPlayerIndex,
+        points
     };
 }
 
 // Reset the trick state and update game state after a trick is complete
 export function finishTrick(gameState: GameState): GameState {
-    const winner = determineTrickWinner(gameState.currentTrick);
+    const winner = determineTrickWinner(gameState.currentTrick, gameState.trickLeader);
+    
+    // Log the trick completion
+    console.log('Finishing trick:', {
+        trick: gameState.currentTrick.map(card => `${card.rank}${card.suit.charAt(0)}`),
+        trickLeader: gameState.trickLeader,
+        winner: winner.playerIndex,
+        points: winner.points
+    });
     
     // Update trick leader for next trick
     gameState.trickLeader = winner.playerIndex;
@@ -277,6 +338,13 @@ export function finishTrick(gameState: GameState): GameState {
     // Update tricks played and first trick status
     gameState.tricksPlayed++;
     gameState.isFirstTrick = false;
+    
+    // Log the updated game state
+    console.log('Updated game state after trick:', {
+        trickLeader: gameState.trickLeader,
+        playerScores: gameState.players.map(p => p.score),
+        tricksPlayed: gameState.tricksPlayed
+    });
     
     return gameState;
 }

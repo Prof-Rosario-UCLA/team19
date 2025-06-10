@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { GameManager } from '../game/GameManager.js';
-import { Card } from '../game/types.js';
+import { Card } from '../../types/types.js';
 import {
     generateUniqueRoomCode,
     createRoom,
@@ -123,11 +123,14 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
                 socket.join(roomId);
                 const room = gameManager.getRoom(roomId);
                 if (room) {
-                    // Broadcast updated game state to all players in the room
-                    io.to(roomId).emit('game_state_updated', {
-                        gameState: room.game.getGameState(),
-                        currentPhase: room.game.getCurrentPhase(),
-                        currentPlayerIndex: room.game.getCurrentPlayerIndex()
+                    // Send individual game states to each player
+                    room.players.forEach((playerIndex, socketId) => {
+                        const clientGameState = room.game.getClientGameState(playerIndex);
+                        io.to(socketId).emit('game_state_updated', {
+                            gameState: clientGameState,
+                            currentPhase: room.game.getCurrentPhase(),
+                            currentPlayerIndex: room.game.getCurrentPlayerIndex()
+                        });
                     });
                     // Broadcast updated room list
                     io.emit('rooms_updated', gameManager.getRooms());
@@ -194,10 +197,14 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
 
         const success = gameManager.selectPassingCards(roomId, socket.id, cards);
         if (success) {
-            io.to(roomId).emit('game_state_updated', {
-                gameState: room.game.getGameState(),
-                currentPhase: room.game.getCurrentPhase(),
-                currentPlayerIndex: room.game.getCurrentPlayerIndex()
+            // Send individual game states to each player
+            room.players.forEach((playerIndex, socketId) => {
+                const clientGameState = room.game.getClientGameState(playerIndex);
+                io.to(socketId).emit('game_state_updated', {
+                    gameState: clientGameState,
+                    currentPhase: room.game.getCurrentPhase(),
+                    currentPlayerIndex: room.game.getCurrentPlayerIndex()
+                });
             });
             callback({ success: true });
         } else {
@@ -213,15 +220,35 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
             return;
         }
 
+        const playerIndex = room.players.get(socket.id);
+        if (playerIndex === undefined) {
+            callback({ success: false, error: 'Player not found in room' });
+            return;
+        }
+
+        // Log the attempt to play card
+        console.log(`Player ${playerIndex} attempting to play card:`, card);
+        console.log('Current game state:', {
+            phase: room.game.getCurrentPhase(),
+            currentPlayerIndex: room.game.getCurrentPlayerIndex(),
+            isFirstTrick: room.game.getGameState().isFirstTrick,
+            currentTrick: room.game.getGameState().currentTrick
+        });
+
         const success = gameManager.playCard(roomId, socket.id, card);
         if (success) {
-            io.to(roomId).emit('game_state_updated', {
-                gameState: room.game.getGameState(),
-                currentPhase: room.game.getCurrentPhase(),
-                currentPlayerIndex: room.game.getCurrentPlayerIndex()
+            // Send individual game states to each player
+            room.players.forEach((playerIndex, socketId) => {
+                const clientGameState = room.game.getClientGameState(playerIndex);
+                io.to(socketId).emit('game_state_updated', {
+                    gameState: clientGameState,
+                    currentPhase: room.game.getCurrentPhase(),
+                    currentPlayerIndex: room.game.getCurrentPlayerIndex()
+                });
             });
             callback({ success: true });
         } else {
+            console.log('Play card failed for player', playerIndex);
             callback({ success: false, error: 'Invalid move' });
         }
     });

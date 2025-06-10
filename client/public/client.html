@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hearts Game Test Client</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card {
+            display: inline-block;
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .card.selected {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .card.playable {
+            border: 2px solid #4CAF50;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+        }
+        .card.playable:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.7);
+        }
+        .card.selected {
+            border: 2px solid #2196F3;
+            background-color: rgba(33, 150, 243, 0.1);
+        }
+        .card.selected.playable {
+            border: 2px solid #4CAF50;
+            background-color: rgba(76, 175, 80, 0.1);
+        }
+        .log {
+            height: 300px;
+            overflow-y: auto;
+            background: #f8f8f8;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background-color: #2196F3;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #1976D2;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hearts Game Test Client</h1>
+    
+    <div class="container">
+        <div class="panel">
+            <h2>Game Controls</h2>
+            <div>
+                <input type="text" id="roomName" placeholder="Room Name">
+                <button id="createRoomBtn">Create Room</button>
+            </div>
+            <div>
+                <input type="text" id="roomId" placeholder="Room ID">
+                <input type="text" id="playerName" placeholder="Player Name">
+                <button id="joinRoomBtn">Join Room</button>
+            </div>
+            <div id="gameControls" style="display: none;">
+                <h3>Your Hand</h3>
+                <div id="hand"></div>
+                <button id="confirmButton" disabled>Confirm</button>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Game State & Logs</h2>
+            <div class="log" id="gameLog"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize variables
+        let socket = null;
+        let currentRoomId = null;
+        let selectedCards = [];
+        let currentGameState = null;
+        let isPassingPhase = false;
+
+        // Initialize socket connection when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize socket connection
+            socket = io('http://localhost:3000', {
+                transports: ['websocket'],
+                reconnection: true
+            });
+
+            // Socket event handlers
+            socket.on('connect', () => {
+                log('Connected to server');
+            });
+
+            socket.on('disconnect', () => {
+                log('Disconnected from server');
+            });
+
+            socket.on('connect_error', (error) => {
+                log('Connection error:', error);
+            });
+
+            socket.on('game_state_updated', (data) => {
+                currentGameState = data.gameState;
+                log('Game State Updated:', JSON.stringify(data.gameState, null, 2));
+                updateUI();
+            });
+
+            socket.on('rooms_updated', (rooms) => {
+                log('Available Rooms:', JSON.stringify(rooms, null, 2));
+            });
+
+            // Add event listeners to buttons
+            document.getElementById('createRoomBtn').addEventListener('click', createRoom);
+            document.getElementById('joinRoomBtn').addEventListener('click', joinRoom);
+            document.getElementById('confirmButton').addEventListener('click', confirmAction);
+        });
+
+        // Game actions
+        function createRoom() {
+            if (!socket) {
+                log('Socket not initialized');
+                return;
+            }
+
+            const roomName = document.getElementById('roomName').value;
+            if (!roomName) {
+                log('Please enter a room name');
+                return;
+            }
+
+            socket.emit('create_room', { name: roomName }, (response) => {
+                if (response.success) {
+                    currentRoomId = response.roomId;
+                    log('Room created:', response.roomId);
+                } else {
+                    log('Failed to create room:', response.error);
+                }
+            });
+        }
+
+        function joinRoom() {
+            if (!socket) {
+                log('Socket not initialized');
+                return;
+            }
+
+            const roomId = document.getElementById('roomId').value;
+            const playerName = document.getElementById('playerName').value;
+            
+            if (!roomId || !playerName) {
+                log('Please enter both room ID and player name');
+                return;
+            }
+
+            socket.emit('join_room', { roomId, playerName }, (response) => {
+                if (response.success) {
+                    currentRoomId = roomId;
+                    log('Joined room:', roomId);
+                    document.getElementById('gameControls').style.display = 'block';
+                } else {
+                    log('Failed to join room:', response.error);
+                }
+            });
+        }
+
+        function selectCard(card) {
+            if (!currentGameState) return;
+
+            // During passing phase, allow selecting any card
+            if (currentGameState.gamePhase === 'PASSING') {
+                const index = selectedCards.findIndex(c => c.suit === card.suit && c.rank === card.rank);
+                if (index === -1) {
+                    if (selectedCards.length < 3) {
+                        selectedCards.push(card);
+                    }
+                } else {
+                    selectedCards.splice(index, 1);
+                }
+            } 
+            // During playing phase, only allow selecting playable cards
+            else if (currentGameState.gamePhase === 'PLAYING') {
+                const isPlayable = currentGameState.playableCards?.some(
+                    playableCard => playableCard.suit === card.suit && playableCard.rank === card.rank
+                );
+                
+                if (isPlayable) {
+                    // Clear previous selection and select new card
+                    selectedCards = [card];
+                }
+            }
+
+            updateUI();
+        }
+
+        function confirmAction() {
+            if (!currentRoomId || !currentGameState) return;
+
+            if (currentGameState.gamePhase === 'PASSING' && selectedCards.length === 3) {
+                socket.emit('select_passing_cards', { 
+                    roomId: currentRoomId, 
+                    cards: selectedCards 
+                }, (response) => {
+                    if (response.success) {
+                        log('Cards selected for passing');
+                        selectedCards = [];
+                        updateUI();
+                    } else {
+                        log('Failed to select cards:', response.error);
+                    }
+                });
+            } else if (currentGameState.gamePhase === 'PLAYING' && selectedCards.length === 1) {
+                socket.emit('play_card', { 
+                    roomId: currentRoomId, 
+                    card: selectedCards[0]
+                }, (response) => {
+                    if (response.success) {
+                        log('Card played:', selectedCards[0].suit, selectedCards[0].rank);
+                        selectedCards = [];
+                        updateUI();
+                    } else {
+                        log('Failed to play card:', response.error);
+                    }
+                });
+            }
+        }
+
+        // UI updates
+        function updateUI() {
+            if (!currentGameState) return;
+
+            const handDiv = document.getElementById('hand');
+            handDiv.innerHTML = '';
+
+            if (currentGameState.myHand) {
+                currentGameState.myHand.forEach(card => {
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = 'card';
+                    
+                    // During playing phase, check if card is playable
+                    if (currentGameState.gamePhase === 'PLAYING') {
+                        const isPlayable = currentGameState.playableCards?.some(
+                            playableCard => playableCard.suit === card.suit && playableCard.rank === card.rank
+                        );
+                        if (isPlayable) {
+                            cardDiv.classList.add('playable');
+                        }
+                    } 
+                    // During passing phase, all cards are selectable
+                    else if (currentGameState.gamePhase === 'PASSING') {
+                        cardDiv.classList.add('playable');
+                    }
+
+                    // Add selected class if card is selected
+                    if (selectedCards.some(c => c.suit === card.suit && c.rank === card.rank)) {
+                        cardDiv.classList.add('selected');
+                    }
+
+                    // Set card color based on suit
+                    if (card.suit === 'HEARTS' || card.suit === 'DIAMONDS') {
+                        cardDiv.classList.add('red');
+                    }
+
+                    cardDiv.textContent = `${card.rank}${card.suit.charAt(0)}`;
+                    cardDiv.onclick = () => selectCard(card);
+                    handDiv.appendChild(cardDiv);
+                });
+
+                // Log playable cards if it's the player's turn
+                if (currentGameState.playableCards) {
+                    log('Playable cards:', JSON.stringify(currentGameState.playableCards, null, 2));
+                }
+            }
+
+            // Update confirm button state
+            const confirmButton = document.getElementById('confirmButton');
+            if (currentGameState.gamePhase === 'PASSING') {
+                isPassingPhase = true;
+                confirmButton.disabled = selectedCards.length !== 3;
+                confirmButton.textContent = 'Pass Cards';
+            } else if (currentGameState.gamePhase === 'PLAYING') {
+                isPassingPhase = false;
+                confirmButton.disabled = selectedCards.length !== 1;
+                confirmButton.textContent = 'Play Card';
+            } else {
+                confirmButton.disabled = true;
+            }
+        }
+
+        function log(...args) {
+            const logDiv = document.getElementById('gameLog');
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+            ).join(' ');
+            logDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html> 
