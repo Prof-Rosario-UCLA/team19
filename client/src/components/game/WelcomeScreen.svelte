@@ -371,8 +371,8 @@
     />
   {:else}
     <!-- Regular Welcome Screen Content -->
-    <!-- Leaderboard in top right -->
-    <div class="absolute top-4 right-4 z-10">
+    <!-- Leaderboard in top right (desktop) or below main card (mobile) -->
+    <div class="absolute top-4 right-4 z-10 hidden min-[800px]:block">
       <Leaderboard {currentUser} {authToken} />
     </div>
 
@@ -412,7 +412,7 @@
     </div>
 
     <div class="h-screen flex items-center justify-center p-4 overflow-y-auto">
-      <div class="max-w-2xl mx-auto w-full">
+      <div class="max-w-2xl mx-auto w-full min-[800px]:pr-10">
         <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-6">
 
           <!-- Header Section -->
@@ -643,6 +643,11 @@
               {/if}
             </div>
           </div>
+        </div>
+        
+        <!-- Mobile Leaderboard (below main card on smaller screens) -->
+        <div class="min-[800px]:hidden max-[419px]:hidden w-full max-w-md mx-auto">
+          <Leaderboard {currentUser} {authToken} />
         </div>
       </div>
     </div>
