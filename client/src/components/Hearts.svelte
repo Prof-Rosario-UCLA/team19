@@ -308,7 +308,6 @@
   function handleJoinGame(event) {
     const { gameCode } = event.detail;
     console.log(`Joining game with code: ${gameCode}`);
-    // TODO: Implement REST API room joining
     alert(`Joining game: ${gameCode}\n\nURL: ${window.location.origin}/game/${gameCode}`);
     initializeGame();
   }

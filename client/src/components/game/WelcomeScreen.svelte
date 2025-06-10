@@ -644,7 +644,7 @@
                         on:click={() => dispatch('showLogin')}
                         class="text-green-600 hover:text-green-700 font-medium"
                 >
-                  Create an account
+                  Create an account or log in
                 </button>
                 to save your stats and compete on the leaderboard!
               </p>
