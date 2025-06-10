@@ -4,7 +4,7 @@ metadata:
   name: hearts-https
   annotations:
     kubernetes.io/ingress.global-static-ip-name: "hearts-static-ip"
-    networking.gke.io/managed-certificates: "hearts-ssl-cert"
+    ingress.gcp.kubernetes.io/pre-shared-cert: "hearts-ssl-cert"
     kubernetes.io/ingress.class: "gce"
 spec:
   rules:

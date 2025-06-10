@@ -44,7 +44,7 @@ RUN npm run build
 
 # Copy the pre-built client files
 WORKDIR /app
-COPY client/dist/ ./server/client/dist/
+COPY client/dist/ ./client/dist/
 
 # Clean up and remove root node_modules
 RUN rm -rf /app/node_modules
