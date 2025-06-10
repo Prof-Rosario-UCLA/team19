@@ -35,7 +35,7 @@ WORKDIR /app
 COPY server/dist/ ./server/dist/
 
 # Copy the pre-built client files
-COPY client/dist/ ./client/dist/
+COPY server/public/ ./server/public/
 
 # Clean up and cache clean
 WORKDIR /app/server

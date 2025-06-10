@@ -56,7 +56,6 @@ jobs:
           path: |
             server/dist/
             server/public/
-            client/dist/
 
   nightly-integration:
     needs: build-and-test
@@ -128,30 +127,20 @@ jobs:
       - name: Restore build files for Docker
         run: |
           # Create directories
-          mkdir -p client/dist
           mkdir -p server/dist
-          
-          # Copy client files
-          if [ -d "dist/client/dist" ]; then
-            cp -r dist/client/dist/* client/dist/
-            echo "Client files restored"
-          else
-            echo "No client files found in dist/client/dist"
-          fi
+          mkdir -p server/public
           
           # Copy server files
           if [ -d "dist/server/dist" ]; then
             cp -r dist/server/dist/* server/dist/
             echo "Server files restored"
-          else
-            echo "No server files found in dist/server/dist"
           fi
           
-          # Verify files were copied
-          echo "Client files:"
-          ls -la client/dist/ || echo "No client files"
-          echo "Server files:"
-          ls -la server/dist/ || echo "No server files"
+          # Copy client files
+          if [ -d "dist/server/public" ]; then
+            cp -r dist/server/public/* server/public/
+            echo "Client files restored"
+          fi
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
