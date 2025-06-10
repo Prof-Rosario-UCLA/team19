@@ -39,8 +39,8 @@ WORKDIR /app
 COPY server/ ./server/
 
 # Build the server TypeScript code
-WORKDIR /app/server
-RUN npm run build
+WORKDIR /app
+COPY server/dist/ ./server/dist/
 
 # Copy the pre-built client files
 WORKDIR /app
