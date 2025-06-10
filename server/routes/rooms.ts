@@ -15,7 +15,6 @@ import {
     deleteRoom,
     startGame,
     endGame,
-    addBotToRoom,
 } from '../db/queries.js';
 
 const router = Router();
@@ -387,61 +386,5 @@ router.put('/:room_code/end', requireAuth, async (req: any, res: any) => {
     }
 });
 
-router.post('/:room_code/add-bot', requireAuth, async (req: any, res: any) => {
-    try {
-        const room_code = req.params.room_code;
-        const {bot_name} = req.body;
-
-        // Validate input
-        if (!bot_name || typeof bot_name !== 'string' || bot_name.trim().length === 0) {
-            return res.status(400).json(errorResponse('INVALID_BOT_NAME', 'Bot name is required'));
-        }
-
-        // Get room and validate
-        const room = await getRoomByCode(room_code);
-        if (!room) {
-            return res.status(404).json(errorResponse('ROOM_NOT_FOUND', 'Room not found'));
-        }
-
-        // Check if user is the host
-        if (room.host_id !== req.user.user_id) {
-            return res.status(403).json(errorResponse('NOT_HOST', 'Only the host can add bots'));
-        }
-
-        // Check if room is still pending
-        if (room.status !== 'pending') {
-            return res.status(400).json(errorResponse('GAME_STARTED', 'Cannot add bots after game has started'));
-        }
-
-        // Check if room has space
-        const playerCount = await getPlayerCountInRoom(room.game_id);
-        if (playerCount >= 4) {
-            return res.status(400).json(errorResponse('ROOM_FULL', 'Room is full (4/4 players)'));
-        }
-
-        // Check if bot name is unique in room
-        const existingNames = await getPlayerNamesInRoom(room.game_id);
-        if (existingNames.includes(bot_name.trim())) {
-            return res.status(409).json(errorResponse('NAME_TAKEN', 'Bot name is already taken in this room'));
-        }
-
-        // Add bot to room
-        const bot = await addBotToRoom(room.game_id, bot_name.trim());
-
-        console.log(`Bot ${bot_name} added to room ${room_code} by ${req.user.username}`);
-
-        res.json(successResponse({
-            player_id: bot.player_id,
-            game_id: bot.game_id,
-            display_name: bot.display_name,
-            type: bot.type,
-            position: playerCount + 1
-        }, 'Bot added successfully'));
-
-    } catch (error) {
-        console.error('Add bot error:', error);
-        res.status(500).json(errorResponse('ADD_BOT_FAILED', 'Failed to add bot'));
-    }
-});
 
 export default router;
