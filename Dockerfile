@@ -1,5 +1,25 @@
 FROM node:18-alpine
 
+# Accept build arguments for environment variables
+ARG DB_HOST
+ARG DB_PORT=5432
+ARG DB_NAME
+ARG DB_USER
+ARG DB_PASSWORD
+ARG JWT_SECRET
+ARG NODE_ENV=production
+ARG PORT=3000
+
+# Set environment variables from build args
+ENV DB_HOST=$DB_HOST
+ENV DB_PORT=$DB_PORT
+ENV DB_NAME=$DB_NAME
+ENV DB_USER=$DB_USER
+ENV DB_PASSWORD=$DB_PASSWORD
+ENV JWT_SECRET=$JWT_SECRET
+ENV NODE_ENV=$NODE_ENV
+ENV PORT=$PORT
+
 # Set working directory
 WORKDIR /app
 
@@ -24,7 +44,7 @@ RUN npm run build
 
 # Copy the pre-built client files
 WORKDIR /app
-COPY client/dist/ ./server/client/dist/
+COPY client/dist/ ./client/dist/
 
 # Clean up and remove root node_modules
 RUN rm -rf /app/node_modules

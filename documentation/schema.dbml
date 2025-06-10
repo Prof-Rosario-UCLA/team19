@@ -1,0 +1,56 @@
+Enum GameStatus {
+  pending // Room created, waiting to start
+  in_progress // Game in progress
+  completed // Game finished
+}
+
+Enum GameMode {
+  normal
+}
+
+Enum PlayerType {
+  registered
+  guest
+  bot
+}
+
+Enum AuthProvider {
+  google
+  apple // Optional if we have time
+  internal // If we ever add our own authentication
+}
+
+Table User {
+    user_id int (PK) [pk, unique, not null, increment]
+    auth_id VARCHAR(255) [unique]
+    auth_provider AuthProvider [not null]
+    username varchar(255) [unique]
+    email varchar(255) [unique, not null] // Only for registered users (not guests and bots)
+    avatar_url text
+    join_date timestamptz [default: `now()`]
+    rating int [not null, default: 1000]
+}
+
+Table GameRoom {
+    game_id int (PK)  [pk, unique, not null, increment]
+    room_code varchar(10)
+    host_id int (FK) [not null]
+    start_time timestamptz [default: `now()`] // When new game room created
+    end_time timestamptz
+    status GameStatus [not null, default: "pending"] // When new gameroom created
+    mode GameMode [not null, default: "normal"] // Futureproofing, if every adding other modes
+}
+
+Table GamePlayer {
+    player_id int (PK) [pk, unique, not null, increment]
+    game_id int (FK) [not null]
+    user_id int (FK, nullable) // For guest users or bots id is null
+    display_name varchar (255) [not null] // Username, user email, or guest/bot
+    score int [not null]
+    placement int
+    type PlayerType [default: "registered"]
+}
+
+Ref: "GameRoom"."game_id" < "GamePlayer"."game_id"
+Ref: "User"."user_id" < "GamePlayer"."user_id"
+Ref: "User"."user_id" < "GameRoom"."host_id"

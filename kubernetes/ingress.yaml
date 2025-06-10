@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hearts-https
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: "hearts-static-ip"
+    ingress.gcp.kubernetes.io/pre-shared-cert: "hearts-ssl-cert"
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+    - host: team19.cs144.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hearts-game-service
+                port: {number: 80}

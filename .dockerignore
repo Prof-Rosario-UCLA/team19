@@ -19,6 +19,7 @@ coverage/
 npm-debug.log*
 .env
 .env.*
+server/.env
 
 # Git and docs
 .git
