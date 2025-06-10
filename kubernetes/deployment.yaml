@@ -51,8 +51,6 @@ spec:
               value: "production"
             - name: PORT
               value: "3000"
-            - name: DATABASE_URL
-              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?schema=public"
           resources:
             requests:
               memory: "256Mi"

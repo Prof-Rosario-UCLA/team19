@@ -20,9 +20,6 @@ ENV JWT_SECRET=$JWT_SECRET
 ENV NODE_ENV=$NODE_ENV
 ENV PORT=$PORT
 
-# Set DATABASE_URL for Prisma
-ENV DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?schema=public"
-
 # Set working directory
 WORKDIR /app
 
@@ -36,12 +33,6 @@ RUN npm ci
 COPY server/package*.json ./server/
 WORKDIR /app/server
 RUN npm install --only=production
-
-# Copy Prisma schema if it exists
-COPY server/prisma/ ./prisma/ 2>/dev/null || true
-
-# Generate Prisma client
-RUN if [ -d "./prisma" ]; then npx prisma generate; fi
 
 # Go back to root and copy server source
 WORKDIR /app
@@ -61,9 +52,6 @@ RUN rm -rf /app/node_modules
 # Reinstall only server production dependencies and clean up
 WORKDIR /app/server
 RUN npm install --only=production && npm cache clean --force
-
-# Regenerate Prisma client for production
-RUN if [ -d "./prisma" ]; then npx prisma generate; fi
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
