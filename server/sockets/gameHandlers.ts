@@ -123,11 +123,14 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
                 socket.join(roomId);
                 const room = gameManager.getRoom(roomId);
                 if (room) {
-                    // Broadcast updated game state to all players in the room
-                    io.to(roomId).emit('game_state_updated', {
-                        gameState: room.game.getGameState(),
-                        currentPhase: room.game.getCurrentPhase(),
-                        currentPlayerIndex: room.game.getCurrentPlayerIndex()
+                    // Send individual game states to each player
+                    room.players.forEach((playerIndex, socketId) => {
+                        const clientGameState = room.game.getClientGameState(playerIndex);
+                        io.to(socketId).emit('game_state_updated', {
+                            gameState: clientGameState,
+                            currentPhase: room.game.getCurrentPhase(),
+                            currentPlayerIndex: room.game.getCurrentPlayerIndex()
+                        });
                     });
                     // Broadcast updated room list
                     io.emit('rooms_updated', gameManager.getRooms());
@@ -194,10 +197,14 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
 
         const success = gameManager.selectPassingCards(roomId, socket.id, cards);
         if (success) {
-            io.to(roomId).emit('game_state_updated', {
-                gameState: room.game.getGameState(),
-                currentPhase: room.game.getCurrentPhase(),
-                currentPlayerIndex: room.game.getCurrentPlayerIndex()
+            // Send individual game states to each player
+            room.players.forEach((playerIndex, socketId) => {
+                const clientGameState = room.game.getClientGameState(playerIndex);
+                io.to(socketId).emit('game_state_updated', {
+                    gameState: clientGameState,
+                    currentPhase: room.game.getCurrentPhase(),
+                    currentPlayerIndex: room.game.getCurrentPlayerIndex()
+                });
             });
             callback({ success: true });
         } else {
@@ -215,10 +222,14 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
 
         const success = gameManager.playCard(roomId, socket.id, card);
         if (success) {
-            io.to(roomId).emit('game_state_updated', {
-                gameState: room.game.getGameState(),
-                currentPhase: room.game.getCurrentPhase(),
-                currentPlayerIndex: room.game.getCurrentPlayerIndex()
+            // Send individual game states to each player
+            room.players.forEach((playerIndex, socketId) => {
+                const clientGameState = room.game.getClientGameState(playerIndex);
+                io.to(socketId).emit('game_state_updated', {
+                    gameState: clientGameState,
+                    currentPhase: room.game.getCurrentPhase(),
+                    currentPlayerIndex: room.game.getCurrentPlayerIndex()
+                });
             });
             callback({ success: true });
         } else {

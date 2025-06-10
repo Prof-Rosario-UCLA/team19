@@ -23,7 +23,7 @@ import {
     getGameWinner,
     canPlayCard
 } from '../../server/game/gameFlow.js';
-import { Card, Suit, Rank, GameState } from '../../server/game/types.js';
+import { Card, Suit, Rank, GameState } from '../../types/types.js';
 
 describe('GameFlow Module', () => {
     let sandbox: sinon.SinonSandbox;

@@ -80,7 +80,7 @@ export interface ClientGameState {
     tricksPlayed: number;
     gamePhase: GamePhase;
     currentPlayerTurn: number;
-    // myPlayerNumber: number; // TODO: add this
+    // myPlayerIndex: number; // Should see if this is necessary
     myHand?: Card[]; // Only the current player's cards
     playableCards?: Card[]; // Valid cards that can be played on their turn
 }

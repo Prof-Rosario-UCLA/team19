@@ -3,7 +3,8 @@ import {
     Player, 
     Card,
     Suit,
-    Rank
+    Rank,
+    ClientGameState
 } from '../../types/types.js';
 import {
     PassingState,
@@ -96,6 +97,40 @@ export class Game {
     // Get the current game state (for external use)
     public getGameState(): GameState {
         return { ...this.gameState };
+    }
+
+    // Convert GameState to ClientGameState for a specific player
+    public getClientGameState(playerIndex: number): ClientGameState {
+        // Get basic game state info
+        const clientState: ClientGameState = {
+            players: this.gameState.players.map(player => ({
+                id: player.id,
+                name: player.name,
+                cardCount: player.hand.length,
+                score: player.score
+            })),
+            currentTrick: [...this.gameState.currentTrick],
+            trickLeader: this.gameState.trickLeader,
+            heartsBroken: this.gameState.heartsBroken,
+            handNumber: this.gameState.handNumber,
+            isFirstTrick: this.gameState.isFirstTrick,
+            tricksPlayed: this.gameState.tricksPlayed,
+            gamePhase: this.currentPhase,
+            currentPlayerTurn: this.currentPlayerIndex
+        };
+
+        // Add player-specific information
+        if (playerIndex >= 0 && playerIndex < this.gameState.players.length) {
+            // Add the player's own hand
+            clientState.myHand = [...this.gameState.players[playerIndex].hand];
+            
+            // Add valid moves if it's the player's turn
+            if (this.currentPhase === GamePhase.PLAYING && playerIndex === this.currentPlayerIndex) {
+                clientState.playableCards = this.getValidMoves(playerIndex);
+            }
+        }
+
+        return clientState;
     }
 
     // Get the current game phase
@@ -230,4 +265,6 @@ export class Game {
             Array.from(this.passingState.selectedCards.values()).length : 
             0;
     }
+
+    
 } 
