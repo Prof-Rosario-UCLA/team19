@@ -242,9 +242,46 @@ export class Game {
         }
 
         const player = this.gameState.players[playerIndex];
-        return player.hand.filter(card => 
-            canPlayCard(this.gameState, playerIndex, card)
-        );
+        
+        // First trick special case
+        if (this.gameState.isFirstTrick) {
+            // If leading the first trick, only 2 of clubs is playable
+            if (this.gameState.currentTrick.length === 0) {
+                return player.hand.filter(card => 
+                    card.suit === Suit.CLUBS && card.rank === Rank.TWO
+                );
+            }
+            // If not leading, can't play hearts or queen of spades
+            return player.hand.filter(card => 
+                card.suit !== Suit.HEARTS && 
+                !(card.suit === Suit.SPADES && card.rank === Rank.QUEEN)
+            );
+        }
+
+        // Regular trick logic
+        if (this.gameState.currentTrick.length === 0) {
+            // If leading a trick
+            if (!this.gameState.heartsBroken) {
+                // Can't lead with hearts unless hearts are broken
+                // Unless player only has hearts left
+                const hasOnlyHearts = player.hand.every(card => card.suit === Suit.HEARTS);
+                return hasOnlyHearts ? player.hand : 
+                    player.hand.filter(card => card.suit !== Suit.HEARTS);
+            }
+            // If hearts are broken, can lead with any card
+            return player.hand;
+        }
+
+        // If not leading, must follow suit if possible
+        const leadSuit = this.gameState.currentTrick[0].suit;
+        const canFollowSuit = player.hand.some(card => card.suit === leadSuit);
+        
+        if (canFollowSuit) {
+            return player.hand.filter(card => card.suit === leadSuit);
+        }
+        
+        // If can't follow suit, can play any card
+        return player.hand;
     }
 
     // Get the current passing direction (if in passing phase)
