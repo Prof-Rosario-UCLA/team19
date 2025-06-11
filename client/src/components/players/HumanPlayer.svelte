@@ -73,11 +73,13 @@
 
 <div class="player-container you">
   <div class="player-info">
-    <div class="player-name {isActive && !passingPhase ? 'active' : ''}">{playerName}</div>
+    <h2 class="player-name {isActive && !passingPhase ? 'active' : ''}">
+      {playerName}
+    </h2>
     <div class="player-score">Score: {score}</div>
     {#if passingPhase}
       <div class="text-sm text-center">
-        <div class="text-blue-300">
+        <div class="text-blue-300" aria-live="polite">
           {selectedCardsForPassing.length}/3 cards selected
         </div>
         {#if readyToPass}
@@ -85,12 +87,14 @@
         {/if}
       </div>
     {:else if isActive}
-      <div class="text-green-300 text-xs">Your turn</div>
+      <div class="text-green-300 text-xs" role="status">Your turn</div>
     {/if}
   </div>
   
   <!-- Your cards (face up, interactive) -->
-  <div class="flex justify-center flex-wrap">
+  <div class="flex justify-center flex-wrap" 
+       role="group" 
+       aria-label={passingPhase ? "Select cards to pass" : "Your hand"}>
     {#each cards as card, i}
       <div class="relative transition-all duration-200 hover:-translate-y-2" 
            style="margin-left: {i === 0 ? '0' : '-25px'}; z-index: {i};">
@@ -142,6 +146,7 @@
     font-size: 14px;
     color: rgb(209, 213, 219);
     transition: all 0.3s ease;
+    margin: 0;
   }
   
   .player-name.active {
