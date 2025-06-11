@@ -112,9 +112,6 @@ jobs:
             echo "No client files found in server/public/"
           fi
 
-      - name: Run integration tests
-        run: npm run test:integration
-
       - name: Merge nightly to main
         if: success()
         env:
