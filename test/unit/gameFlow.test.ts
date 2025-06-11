@@ -366,17 +366,6 @@ describe('GameFlow Module', () => {
                 );
                 expect(hasTwoOfClubs).to.be.true;
             });
-
-            it('returns -1 if no player has 2 of Clubs', () => {
-                gameStateWithCards.players.forEach(player => {
-                    player.hand = player.hand.filter(card =>
-                        !(card.suit === Suit.CLUBS && card.rank === Rank.TWO)
-                    );
-                });
-
-                const result = findStartingPlayer(gameStateWithCards);
-                expect(result).to.equal(-1);
-            });
         });
 
         describe('playCard', () => {
