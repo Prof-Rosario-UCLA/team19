@@ -3,83 +3,52 @@
 
   import { getContext } from "svelte";
   import { createEventDispatcher } from 'svelte';
-  
+
   export let suit: "hearts" | "diamonds" | "clubs" | "spades";
   export let rank: number | "J" | "Q" | "K" | "A";
   export let faceUp: boolean = true;
   export let selectable: boolean = false;
   export let selected: boolean = false;
-  
+
   // Card dimensions from context
   const cardWidth = getContext('cardWidth') || 80;
   const cardHeight = getContext('cardHeight') || 120;
-  
 
-  const isRed = suit === "hearts" || suit === "diamonds";
-  const suitSymbol = {
+  // Make these REACTIVE with $: to ensure they update when props change
+  $: isRed = suit === "hearts" || suit === "diamonds";
+  $: suitSymbol = {
     "hearts": "♥",
     "diamonds": "♦",
     "clubs": "♣",
     "spades": "♠"
   }[suit];
-  
+
+  // Debug logging to see what each card receives
+  $: console.log(`Card component: ${rank} of ${suit} (red: ${isRed}, symbol: ${suitSymbol})`);
+
   const dispatch = createEventDispatcher();
-  
+
   function handleClick() {
     if (selectable) {
       dispatch('cardSelect', { suit, rank });
     }
   }
-  // console.log("Card component loaded");
-
-  // import { getContext } from "svelte";
-  // import { createEventDispatcher } from 'svelte';
-  // import { Suit, Rank } from '../../../../types/game.js';
-  
-  // export let suit: Suit;
-  // export let rank: Rank;
-  // export let faceUp: boolean = true;
-  // export let selectable: boolean = false;
-  // export let selected: boolean = false;
-  
-  // // Card dimensions from context
-  // const cardWidth = getContext('cardWidth') || 80;
-  // const cardHeight = getContext('cardHeight') || 120;
-  
-  // const isRed = suit === Suit.HEARTS || suit === Suit.DIAMONDS;
-  // const suitSymbol = {
-  //   [Suit.HEARTS]: "♥",
-  //   [Suit.DIAMONDS]: "♦",
-  //   [Suit.CLUBS]: "♣",
-  //   [Suit.SPADES]: "♠"
-  // }[suit];
-  
-  // const dispatch = createEventDispatcher();
-  
-  // function handleClick() {
-  //   if (selectable) {
-  //     dispatch('cardSelect', { suit, rank });
-  //   }
-  // }
 </script>
 
-<div 
-  class="relative bg-white border border-gray-800 rounded-md shadow-md cursor-default transition-transform duration-200 ease-in-out
-         {selectable ? 'cursor-pointer hover:-translate-y-2' : ''} 
+<div
+        class="relative bg-white border border-gray-800 rounded-md shadow-md cursor-default transition-transform duration-200 ease-in-out
+         {selectable ? 'cursor-pointer hover:-translate-y-2' : ''}
          {selected ? '-translate-y-4 shadow-lg' : ''}"
-  style="width: {cardWidth}px; height: {cardHeight}px;"
-  on:click={handleClick}
-
-
-  role="button"
-  tabindex={selectable ? 0 : -1}
-  on:keydown={(e) => {
+        style="width: {cardWidth}px; height: {cardHeight}px;"
+        on:click={handleClick}
+        role="button"
+        tabindex={selectable ? 0 : -1}
+        on:keydown={(e) => {
     if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault(); // Prevent scrolling for Space key
+      e.preventDefault();
       handleClick();
     }
   }}
-
 >
   {#if faceUp}
     <!-- Top left corner -->
@@ -87,12 +56,12 @@
       <div>{rank}</div>
       <div>{suitSymbol}</div>
     </div>
-    
+
     <!-- Center symbol -->
     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl {isRed ? 'text-red-600' : 'text-gray-900'}">
       {suitSymbol}
     </div>
-    
+
     <!-- Bottom right corner -->
     <div class="absolute bottom-1 right-1 flex flex-col items-center font-bold rotate-180 {isRed ? 'text-red-600' : 'text-gray-900'}">
       <div>{rank}</div>

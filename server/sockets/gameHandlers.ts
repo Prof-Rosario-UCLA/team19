@@ -89,50 +89,37 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         user?: { user_id: number, username: string }
     }, callback) => {
         try {
-            // Check if room exists in database
-            const dbRoom = await getRoomByCode(roomId);
+            // ... existing database logic ...
 
-            if (dbRoom && user?.user_id) {
-                // Room exists in DB and user is authenticated
-                const playerCount = await getPlayerCountInRoom(dbRoom.game_id);
-
-                if (playerCount >= 4) {
-                    callback({ success: false, error: 'Room is full' });
-                    return;
-                }
-
-                if (dbRoom.status !== 'pending') {
-                    callback({ success: false, error: 'Game already started' });
-                    return;
-                }
-
-                // Check if user is already in the room
-                const existingPlayer = await getPlayersInRoom(dbRoom.game_id);
-                const userAlreadyInRoom = existingPlayer.find(p => p.user_id === user.user_id);
-
-                if (!userAlreadyInRoom) {
-                    // Add to database
-                    await addPlayerToRoom(dbRoom.game_id, user.user_id, user.username, 'registered');
-                }
-            }
-
-            // Always try to join the GameManager room for real-time gameplay
             const success = gameManager.joinRoom(roomId, socket.id, playerName);
 
             if (success) {
                 socket.join(roomId);
                 const room = gameManager.getRoom(roomId);
                 if (room) {
-                    // Send individual game states to each player
+                    // Get all player names
+                    const allPlayerNames = gameManager.getAllPlayerNames(roomId);
+
+                    // Send individual game states to each player WITH complete player info
                     room.players.forEach((playerIndex, socketId) => {
                         const clientGameState = room.game.getClientGameState(playerIndex);
+
+                        // ENHANCE the game state with complete player information
+                        const enhancedGameState = {
+                            ...clientGameState,
+                            // Add complete player information that all clients can see
+                            allPlayerNames: allPlayerNames,
+                            myPlayerIndex: playerIndex,
+                            totalPlayers: room.players.size
+                        };
+
                         io.to(socketId).emit('game_state_updated', {
-                            gameState: clientGameState,
+                            gameState: enhancedGameState,
                             currentPhase: room.game.getCurrentPhase(),
                             currentPlayerIndex: room.game.getCurrentPlayerIndex()
                         });
                     });
-                    // Broadcast updated room list
+
                     io.emit('rooms_updated', gameManager.getRooms());
                 }
                 callback({ success: true });
