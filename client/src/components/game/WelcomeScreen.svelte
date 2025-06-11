@@ -31,6 +31,21 @@
   let connectionError = '';
   let roomError = '';
 
+  // Canvas variables
+  let canvas: HTMLCanvasElement;
+  let ctx: CanvasRenderingContext2D;
+  let animationId: number;
+  let floatingCards: Array<{
+    x: number;
+    y: number;
+    suit: string;
+    rank: string;
+    rotation: number;
+    speed: number;
+    rotationSpeed: number;
+    opacity: number;
+  }> = [];
+
   // Helper function to make authenticated API calls
   function makeAuthenticatedRequest(url: string, options: any = {}) {
     const headers = {
@@ -46,6 +61,85 @@
       ...options,
       headers
     });
+  }
+
+  // Canvas animation functions
+  function initCanvas() {
+    if (!canvas) return;
+    
+    ctx = canvas.getContext('2d');
+    resizeCanvas();
+    
+    // Create floating cards
+    const suits = ['♠', '♥', '♦', '♣'];
+    const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7'];
+    
+    for (let i = 0; i < 12; i++) {
+      floatingCards.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        suit: suits[Math.floor(Math.random() * suits.length)],
+        rank: ranks[Math.floor(Math.random() * ranks.length)],
+        rotation: Math.random() * Math.PI * 2,
+        speed: 0.2 + Math.random() * 0.5,
+        rotationSpeed: (Math.random() - 0.5) * 0.02,
+        opacity: 0.1 + Math.random() * 0.15
+      });
+    }
+    
+    animate();
+  }
+
+  function resizeCanvas() {
+    if (!canvas) return;
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  function animate() {
+    if (!ctx || !canvas) return;
+    
+    // Clear canvas with transparent background
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Update and draw floating cards
+    floatingCards.forEach(card => {
+      // Update position
+      card.y -= card.speed;
+      card.rotation += card.rotationSpeed;
+      
+      // Reset card when it goes off screen
+      if (card.y < -100) {
+        card.y = canvas.height + 100;
+        card.x = Math.random() * canvas.width;
+      }
+      
+      // Draw card
+      ctx.save();
+      ctx.translate(card.x, card.y);
+      ctx.rotate(card.rotation);
+      ctx.globalAlpha = card.opacity;
+      
+      // Card background
+      ctx.fillStyle = 'white';
+      ctx.fillRect(-20, -30, 40, 60);
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-20, -30, 40, 60);
+      
+      // Card content
+      ctx.fillStyle = (card.suit === '♥' || card.suit === '♦') ? '#dc2626' : '#1f2937';
+      ctx.font = 'bold 12px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(card.rank, 0, -10);
+      ctx.font = 'bold 16px serif';
+      ctx.fillText(card.suit, 0, 10);
+      
+      ctx.restore();
+    });
+    
+    animationId = requestAnimationFrame(animate);
   }
 
   function startLocalGame() {
@@ -330,11 +424,24 @@
   }
 
   onMount(() => {
-    // Auto-connect if user wants to play online
+    initCanvas();
+    
+    const handleResize = () => {
+      resizeCanvas();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
   });
 
   onDestroy(() => {
     disconnectFromServer();
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+    }
   });
 
   // Game rules data
@@ -355,30 +462,39 @@
 </script>
 
 <div class="min-h-screen relative overflow-hidden">
+  <!-- Animated Canvas Background -->
+  <canvas
+    bind:this={canvas}
+    class="fixed inset-0 w-full h-full pointer-events-none z-0"
+    style="background: transparent;"
+  ></canvas>
+
   {#if inWaitingRoom}
     <!-- Waiting Room Component -->
-    <WaitingRoom
-            {socket}
-            roomId={currentRoomId}
-            roomName={currentRoomName}
-            {playerName}
-            {currentUser}
-            {authToken}
-            {isLoggedIn}
-            on:leaveRoom={handleLeaveRoom}
-            on:gameReady={handleGameReady}
-            on:gameStarted={handleGameStarted}
-    />
+    <div class="relative z-10">
+      <WaitingRoom
+              {socket}
+              roomId={currentRoomId}
+              roomName={currentRoomName}
+              {playerName}
+              {currentUser}
+              {authToken}
+              {isLoggedIn}
+              on:leaveRoom={handleLeaveRoom}
+              on:gameReady={handleGameReady}
+              on:gameStarted={handleGameStarted}
+      />
+    </div>
   {:else}
     <!-- Regular Welcome Screen Content -->
     <!-- Leaderboard in top right (desktop) or below main card (mobile) -->
-    <div class="absolute top-4 right-4 z-10 hidden min-[800px]:block">
+    <div class="absolute top-4 right-4 z-20 hidden min-[800px]:block">
       <Leaderboard {currentUser} {authToken} />
     </div>
 
     <!-- User info and logout in top left (if logged in) -->
     {#if currentUser}
-      <div class="absolute top-4 left-4 z-10">
+      <div class="absolute top-4 left-4 z-20">
         <div class="bg-black bg-opacity-40 rounded-lg p-3 text-white">
           <div class="text-sm">
             <div class="text-green-300 font-medium">Welcome back!</div>
@@ -396,7 +512,7 @@
     {/if}
 
     <!-- Connection Status (top center) -->
-    <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+    <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
       <div class="bg-black bg-opacity-40 rounded-lg p-2 text-white text-sm flex items-center gap-2">
         <div class="w-2 h-2 rounded-full {connectionStatus === 'Connected' ? 'bg-green-500' : 'bg-red-500'}"></div>
         <span>{connectionStatus}</span>
@@ -411,7 +527,7 @@
       </div>
     </div>
 
-    <div class="h-screen flex items-center justify-center p-4 overflow-y-auto">
+    <div class="h-screen flex items-center justify-center p-4 overflow-y-auto relative z-10">
       <div class="max-w-2xl mx-auto w-full min-[800px]:pr-10">
         <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-6">
 
@@ -646,7 +762,7 @@
         </div>
         
         <!-- Mobile Leaderboard (below main card on smaller screens) -->
-        <div class="min-[800px]:hidden max-[419px]:hidden w-full max-w-md mx-auto">
+        <div class="min-[800px]:hidden max-[419px]:hidden w-full max-w-md mx-auto relative z-10">
           <Leaderboard {currentUser} {authToken} />
         </div>
       </div>
@@ -731,3 +847,4 @@
     {/if}
   {/if}
 </div>
+                
