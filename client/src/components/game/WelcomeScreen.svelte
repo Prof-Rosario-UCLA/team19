@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import { io, Socket } from 'socket.io-client';
+  import { io, type Socket } from 'socket.io-client';
   import Leaderboard from '../game/Leaderboard.svelte';
   import WaitingRoom from './WaitingRoom.svelte';
 
@@ -274,9 +274,12 @@
 
   function handleGameStarted(event) {
     console.log('Game started:', event.detail);
+
+    // Pass socket instance along with game state
     dispatch('joinedOnlineGame', {
       gameState: event.detail.gameState,
-      roomId: event.detail.roomId
+      roomId: event.detail.roomId,
+      socket: socket // Add this line to pass socket instance
     });
   }
 

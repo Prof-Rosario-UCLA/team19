@@ -19,7 +19,7 @@
   let connectionError = '';
 
   // Polling interval for room updates
-  let pollInterval: number;
+  let pollInterval: ReturnType<typeof setInterval>;
 
   // Helper function to make authenticated API calls
   function makeAuthenticatedRequest(url: string, options: any = {}) {
@@ -119,8 +119,27 @@
 
     socket.on('game_state_updated', (data: any) => {
       console.log('Game state updated in waiting room:', data);
+
+      // Extract the actual game state data
+      const { gameState, roomId } = data;
+
+      // Dispatch event with properly formatted game state
       dispatch('gameStarted', {
-        gameState: data.gameState,
+        gameState: {
+          gameStarted: true,
+          gameOver: false,
+          roundNumber: gameState.roundNumber || 1,
+          passingDirection: gameState.passingDirection || 'left',
+          passingPhase: gameState.passingPhase || false,
+          currentPlayerIndex: gameState.currentPlayerIndex || 0,
+          players: gameState.players || ['You', 'Player 2', 'Player 3', 'Player 4'],
+          hands: gameState.hands || {},
+          scores: gameState.scores || {},
+          roundScores: gameState.roundScores || {},
+          currentTrick: gameState.currentTrick || [],
+          trickWinner: gameState.trickWinner || null,
+          heartsBroken: gameState.heartsBroken || false
+        },
         roomId
       });
     });
@@ -133,6 +152,21 @@
     socket.on('player_left', (data: any) => {
       console.log('Player left:', data);
       updateRoomInfo();
+    });
+
+    socket.on('cards_dealt', (data: any) => {
+      console.log('Cards dealt:', data);
+      dispatch('cardsDealt', data);
+    });
+
+    socket.on('trick_played', (data: any) => {
+      console.log('Trick played:', data);
+      dispatch('trickPlayed', data);
+    });
+
+    socket.on('round_ended', (data: any) => {
+      console.log('Round ended:', data);
+      dispatch('roundEnded', data);
     });
   }
 

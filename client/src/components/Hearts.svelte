@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, setContext } from 'svelte';
+  import type { Socket } from 'socket.io-client';
 
   // Import components
   import WelcomeScreen from './game/WelcomeScreen.svelte';
@@ -12,10 +13,14 @@
   setContext('cardHeight', 70);
 
   // User and authentication state
-  let currentUser: any = null; // Changed from string to object to hold full user data
+  let currentUser: any = null;
   let authToken: string | null = null;
   let showLogin = false;
   let isLoggedIn = false;
+
+  // Socket state
+  let socket: Socket | null = null;
+  let currentRoomId: string = '';
 
   // Game state
   let gameState: GameState = {
@@ -25,7 +30,7 @@
     passingDirection: 'left',
     passingPhase: false,
     currentPlayerIndex: 0,
-    players: ['You', 'West', 'North', 'East'],
+    players: [],
     hands: {},
     scores: {},
     roundScores: {},
@@ -34,17 +39,9 @@
     heartsBroken: false
   };
 
-  let passingDirection = 'left'; // 'left', 'right', 'across', 'none'
-
   // Player data
-  let players: PlayerType[] = [
-    { name: 'You', hand: [], score: 0, isHuman: true },
-    { name: 'West', hand: [], score: 0, isHuman: false },
-    { name: 'North', hand: [], score: 0, isHuman: false },
-    { name: 'East', hand: [], score: 0, isHuman: false }
-  ];
-
-  let roundScores = {};
+  let players: PlayerType[] = [];
+  let roundScores: { [playerName: string]: number } = {};
   let humanReadyToPass = false;
   let humanSelectedCards: CardType[] = [];
   let aiPassingComplete = false;
@@ -66,15 +63,52 @@
     });
   }
 
-  // Initialize scores
-  players.forEach(player => {
-    roundScores[player.name] = 0;
-    gameState.scores[player.name] = 0;
-    gameState.roundScores[player.name] = 0;
-    gameState.hands[player.name] = [];
-  });
+  // Initialize LOCAL game
+  function initializeLocalGame() {
+    // Reset socket connection for local game
+    socket = null;
+    currentRoomId = '';
 
-  // Deal cards to players
+    // Set up local players
+    players = [
+      { name: 'You', hand: [], score: 0, isHuman: true },
+      { name: 'Computer 1', hand: [], score: 0, isHuman: false },
+      { name: 'Computer 2', hand: [], score: 0, isHuman: false },
+      { name: 'Computer 3', hand: [], score: 0, isHuman: false }
+    ];
+
+    // Initialize game state for local game
+    gameState = {
+      gameStarted: true,
+      gameOver: false,
+      roundNumber: 1,
+      passingDirection: 'left',
+      passingPhase: true,
+      currentPlayerIndex: 0,
+      players: players.map(p => p.name),
+      hands: {},
+      scores: {},
+      roundScores: {},
+      currentTrick: [],
+      trickWinner: null,
+      heartsBroken: false
+    };
+
+    // Initialize scores
+    players.forEach(player => {
+      gameState.scores[player.name] = 0;
+      gameState.roundScores[player.name] = 0;
+      roundScores[player.name] = 0;
+    });
+
+    // Deal cards
+    dealCards();
+
+    // Set passing direction
+    updatePassingDirection();
+  }
+
+  // Deal cards to players (LOCAL game only)
   function dealCards() {
     const suits: ("hearts" | "diamonds" | "clubs" | "spades")[] = ['hearts', 'diamonds', 'clubs', 'spades'];
     const ranks: (number | "J" | "Q" | "K" | "A")[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 'J', 'Q', 'K', 'A'];
@@ -110,13 +144,23 @@
         }
         return rankOrder[a.rank] - rankOrder[b.rank];
       });
+
+      // Update game state hands
+      gameState.hands[player.name] = [...player.hand];
     });
 
     // Update reactive reference
     players = [...players];
   }
 
-  // Core card playing logic
+  // Update passing direction based on round
+  function updatePassingDirection() {
+    const directions = ['left', 'right', 'across', 'none'];
+    gameState.passingDirection = directions[(gameState.roundNumber - 1) % 4];
+    gameState.passingPhase = gameState.passingDirection !== 'none';
+  }
+
+  // Core card playing logic (LOCAL game only)
   function playCard(player: string, card: CardType) {
     if (gameState.passingPhase || gameState.gameOver) return false;
 
@@ -133,8 +177,8 @@
 
     // Remove card from hand
     currentPlayer.hand.splice(cardIndex, 1);
-    gameState.hands[player] = [...currentPlayer.hand]; // Update GameState
-    players = [...players]; // Update reactive reference
+    gameState.hands[player] = [...currentPlayer.hand];
+    players = [...players];
 
     // Add card to current trick
     gameState.currentTrick = [...gameState.currentTrick, { player, card }];
@@ -150,19 +194,36 @@
     return true;
   }
 
-  // Complete a trick
+  // Complete a trick (LOCAL game only)
   function completeTrick() {
     setTimeout(() => {
-      // Simple trick winner logic - first player wins for now
-      gameState.trickWinner = gameState.currentTrick[0].player;
+      // Simple trick winner logic - highest card of led suit wins
+      const ledSuit = gameState.currentTrick[0].card.suit;
+      let winner = gameState.currentTrick[0];
+
+      gameState.currentTrick.forEach(play => {
+        if (play.card.suit === ledSuit) {
+          const currentRank = typeof winner.card.rank === 'number' ? winner.card.rank :
+                  winner.card.rank === 'J' ? 11 : winner.card.rank === 'Q' ? 12 :
+                          winner.card.rank === 'K' ? 13 : 14;
+          const playRank = typeof play.card.rank === 'number' ? play.card.rank :
+                  play.card.rank === 'J' ? 11 : play.card.rank === 'Q' ? 12 :
+                          play.card.rank === 'K' ? 13 : 14;
+
+          if (playRank > currentRank) {
+            winner = play;
+          }
+        }
+      });
+
+      gameState.trickWinner = winner.player;
 
       setTimeout(() => {
-        const winner = gameState.trickWinner;
         gameState.currentTrick = [];
         gameState.trickWinner = null;
-        gameState.currentPlayerIndex = players.findIndex(p => p.name === winner);
+        gameState.currentPlayerIndex = players.findIndex(p => p.name === winner.player);
 
-        // Check if round is over (all cards played)
+        // Check if round is over
         if (players.every(player => player.hand.length === 0)) {
           endRound();
         }
@@ -170,21 +231,21 @@
     }, 1000);
   }
 
-  // End current round
+  // End round (LOCAL game only)
   function endRound() {
-    // Simple scoring - random points for demo
+    // Calculate scores for the round
+    // This is simplified - in real Hearts, you'd count hearts and Queen of Spades
     players.forEach(player => {
-      const roundScore = Math.floor(Math.random() * 10);
-      roundScores[player.name] = roundScore;
-      gameState.roundScores[player.name] = roundScore;
-      player.score += roundScore;
+      const points = Math.floor(Math.random() * 26); // Random for now
+      roundScores[player.name] = points;
+      gameState.roundScores[player.name] = points;
+      player.score += points;
       gameState.scores[player.name] = player.score;
     });
 
-    players = [...players]; // Update reactive reference
-    roundScores = { ...roundScores };
+    players = [...players];
 
-    // Check if game should end (someone reached 100 points)
+    // Check if game should end
     const maxScore = Math.max(...players.map(p => p.score));
     if (maxScore >= 100) {
       gameState.gameOver = true;
@@ -194,140 +255,139 @@
     // Start next round
     gameState.roundNumber++;
     setTimeout(() => {
-      initializeGame();
+      startNewRound();
     }, 3000);
   }
 
-  // initialize the game
-  function initializeGame() {
-    gameState.gameStarted = true;
-    gameState.gameOver = false;
+  // Start new round (LOCAL game only)
+  function startNewRound() {
     gameState.currentTrick = [];
     gameState.trickWinner = null;
     gameState.currentPlayerIndex = 0;
+    gameState.heartsBroken = false;
 
-    // Reset round scores and passing state
+    // Reset round scores
     players.forEach(player => {
       roundScores[player.name] = 0;
+      gameState.roundScores[player.name] = 0;
     });
-    roundScores = { ...roundScores };
+
+    // Deal new cards
+    dealCards();
+    updatePassingDirection();
+
+    // Reset passing state
     humanReadyToPass = false;
     humanSelectedCards = [];
     aiPassingComplete = false;
-
-    // Deal cards
-    dealCards();
-
-    // Set passing direction based on round number
-    switch ((gameState.roundNumber - 1) % 4) {
-      case 0: passingDirection = 'left'; break;
-      case 1: passingDirection = 'right'; break;
-      case 2: passingDirection = 'across'; break;
-      case 3: passingDirection = 'none'; break;
-    }
-
-    gameState.passingPhase = passingDirection !== 'none';
-    gameState = { ...gameState }; // Update reactive reference
   }
 
-  // Handle card play events from player components
+  // Handle ONLINE game joined
+  function handleJoinedOnlineGame(event) {
+    const { gameState: serverGameState, roomId, socket: gameSocket } = event.detail;
+
+    // Store socket and room ID
+    socket = gameSocket;
+    currentRoomId = roomId;
+
+    // Update game state from server
+    gameState = { ...serverGameState };
+
+    // Update players from server state
+    if (serverGameState.players && serverGameState.hands) {
+      players = serverGameState.players.map((playerName, index) => ({
+        name: playerName,
+        hand: serverGameState.hands[playerName] || [],
+        score: serverGameState.scores[playerName] || 0,
+        isHuman: true // In online games, treat all as human (server manages AI)
+      }));
+
+      // Initialize round scores
+      players.forEach(player => {
+        roundScores[player.name] = serverGameState.roundScores[player.name] || 0;
+      });
+    }
+  }
+
+  // Event handlers
+  function handleStartGame() {
+    initializeLocalGame();
+  }
+
   function handlePlayCard(event) {
     const { player, card } = event.detail;
-    playCard(player, card);
+
+    if (socket?.connected && currentRoomId) {
+      // Online game - emit to server
+      socket.emit('play_card', {
+        roomId: currentRoomId,
+        player,
+        card
+      }, (response) => {
+        if (!response.success) {
+          console.error('Failed to play card:', response.error);
+        }
+      });
+    } else {
+      // Local game - handle locally
+      playCard(player, card);
+    }
   }
 
-  // Handle human player passing selection
+  function handlePassCards() {
+    if (!humanReadyToPass) return;
+
+    if (socket?.connected && currentRoomId) {
+      // Online game - emit to server
+      socket.emit('pass_cards', {
+        roomId: currentRoomId,
+        cards: humanSelectedCards
+      }, (response) => {
+        if (!response.success) {
+          console.error('Failed to pass cards:', response.error);
+        }
+      });
+    } else {
+      // Local game - handle locally
+      // TODO: Implement local passing logic
+      gameState.passingPhase = false;
+      humanReadyToPass = false;
+      humanSelectedCards = [];
+      gameState = { ...gameState };
+    }
+  }
+
   function handleHumanPassingSelection(event) {
     const { ready, selectedCards } = event.detail;
     humanReadyToPass = ready;
     humanSelectedCards = selectedCards;
   }
 
-  // Handle AI player passing selection
   function handleAIPassingSelection(event) {
-    // For now, just mark AI as ready (we'll implement actual passing logic later)
-    console.log(`${event.detail.player} selected cards for passing:`, event.detail.cards);
-  }
-
-  // Handle pass completion
-  function handlePassDone() {
-    if (!humanReadyToPass) return;
-
-    // End passing phase
-    gameState.passingPhase = false;
-    humanReadyToPass = false;
-    humanSelectedCards = [];
-    aiPassingComplete = false;
-    gameState = { ...gameState };
-  }
-
-  // Control event handlers
-  function handleStartGame() {
-    initializeGame();
-  }
-
-  // Updated to handle REST API room creation
-  async function handleCreateGame(event) {
-    const { gameId } = event.detail;
-
-    if (isLoggedIn && authToken) {
-      try {
-        // Create room via REST API
-        const response = await makeAuthenticatedRequest('/api/rooms', {
-          method: 'POST',
-          body: JSON.stringify({ mode: 'normal' })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          console.log('Room created via API:', data.data);
-          alert(`Room created! Share this code: ${data.data.room_code}\n\nURL: ${window.location.origin}/join/${data.data.room_code}`);
-          // Could navigate to waiting room here
-        } else {
-          console.error('Failed to create room:', data.error);
-          alert(`Failed to create room: ${data.error?.message}`);
-        }
-      } catch (error) {
-        console.error('Error creating room:', error);
-        alert('Failed to create room. Please try again.');
-      }
-    } else {
-      // Fallback to local game for guests
-      console.log(`Creating local game with ID: ${gameId}`);
-      alert(`Game created! Share this code with friends: ${gameId}\n\nURL: ${window.location.origin}/game/${gameId}`);
-      initializeGame();
+    // Only relevant for local games
+    if (!socket?.connected) {
+      console.log(`${event.detail.player} selected cards for passing:`, event.detail.cards);
     }
   }
 
-  function handleJoinGame(event) {
-    const { gameCode } = event.detail;
-    console.log(`Joining game with code: ${gameCode}`);
-    alert(`Joining game: ${gameCode}\n\nURL: ${window.location.origin}/game/${gameCode}`);
-    initializeGame();
-  }
-
   function handleRestartGame() {
-    gameState.roundNumber = 1;
-    players.forEach(player => {
-      player.score = 0;
-    });
-    players = [...players];
-    initializeGame();
+    if (socket?.connected && currentRoomId) {
+      // Online game - request new game from server
+      socket.emit('restart_game', { roomId: currentRoomId });
+    } else {
+      // Local game - restart locally
+      initializeLocalGame();
+    }
   }
 
-  // Authentication event handlers - Updated to handle full user objects
+  // Authentication handlers
   function handleLoginSuccess(event) {
     const { user, token } = event.detail;
     currentUser = user;
     authToken = token;
     isLoggedIn = true;
     showLogin = false;
-
-    // Store token for persistence
     localStorage.setItem('hearts_token', token);
-
-    console.log(`Welcome back, ${user.username}!`, user);
   }
 
   function handleAccountCreated(event) {
@@ -336,11 +396,7 @@
     authToken = token;
     isLoggedIn = true;
     showLogin = false;
-
-    // Store token for persistence
     localStorage.setItem('hearts_token', token);
-
-    console.log(`Account created for ${user.username}!`, user);
   }
 
   function handlePlayAsGuest() {
@@ -348,8 +404,6 @@
     authToken = null;
     isLoggedIn = false;
     showLogin = false;
-
-    // Clear any stored token
     localStorage.removeItem('hearts_token');
   }
 
@@ -362,16 +416,24 @@
     authToken = null;
     isLoggedIn = false;
     showLogin = false;
-
-    // Clear stored token
     localStorage.removeItem('hearts_token');
   }
 
+  function handleJoinGame(event) {
+    const { gameCode } = event.detail;
+    console.log(`Joining game with code: ${gameCode}`);
+  }
+
+  function handleCreateGame(event) {
+    const { gameId } = event.detail;
+    console.log(`Creating game with ID: ${gameId}`);
+  }
+
+  // Check existing auth on mount
   async function checkExistingAuth() {
     const token = localStorage.getItem('hearts_token');
     if (token) {
       try {
-        // Validate token with server
         const response = await fetch('/api/auth/validate', {
           method: 'GET',
           headers: {
@@ -383,83 +445,65 @@
         const data = await response.json();
 
         if (data.success) {
-          // Token is valid, restore user session
           currentUser = data.data.user;
           authToken = token;
           isLoggedIn = true;
           console.log('Session restored for:', currentUser.username);
         } else {
-          // Token is invalid, clear it
-          console.log('Invalid token, clearing session');
           localStorage.removeItem('hearts_token');
-          authToken = null;
-          currentUser = null;
-          isLoggedIn = false;
         }
       } catch (error) {
         console.error('Error validating token:', error);
-        // Clear invalid token
         localStorage.removeItem('hearts_token');
-        authToken = null;
-        currentUser = null;
-        isLoggedIn = false;
       }
     }
   }
 
-  // Check for existing auth on component mount
   onMount(() => {
     checkExistingAuth();
   });
 
-  // Reactive statements for scores
+  // Reactive statement for scores
   $: scores = players.reduce((acc, player) => {
     acc[player.name] = player.score;
     return acc;
   }, {});
-
-  // Pass user info to child components
-  $: userForComponents = currentUser ? {
-    user_id: currentUser.user_id,
-    username: currentUser.username
-  } : null;
 </script>
 
-<!-- Main container with gradient background -->
+<!-- Main container -->
 <div class="min-h-screen bg-gradient-to-br from-green-900 via-green-800 to-emerald-900">
   {#if showLogin}
-    <!-- Login Screen -->
     <Login
             on:loginSuccess={handleLoginSuccess}
             on:accountCreated={handleAccountCreated}
             on:playAsGuest={handlePlayAsGuest}
     />
   {:else if gameState.gameStarted}
-    <!-- Game Board Container -->
     <GameBoard
-      {gameState}
-      {players}
-      {roundScores}
-      {humanReadyToPass}
-      {humanSelectedCards}
-      {aiPassingComplete}
-      {passingDirection}
-      on:startGame={handleStartGame}
-      on:restartGame={handleRestartGame}
-      on:passDone={handlePassDone}
-      on:playCard={handlePlayCard}
-      on:humanPassingSelection={handleHumanPassingSelection}
-      on:aiPassingSelection={handleAIPassingSelection}
+            {gameState}
+            {players}
+            {roundScores}
+            {humanReadyToPass}
+            {humanSelectedCards}
+            {aiPassingComplete}
+            {socket}
+            {currentRoomId}
+            on:startGame={handleStartGame}
+            on:restartGame={handleRestartGame}
+            on:passDone={handlePassCards}
+            on:playCard={handlePlayCard}
+            on:humanPassingSelection={handleHumanPassingSelection}
+            on:aiPassingSelection={handleAIPassingSelection}
     />
   {:else}
-    <!-- Welcome Screen Component -->
     <WelcomeScreen
-            currentUser={currentUser}
-            authToken={authToken}
-            isLoggedIn={isLoggedIn}
+            {currentUser}
+            {authToken}
+            {isLoggedIn}
             on:startGame={handleStartGame}
             on:createGame={handleCreateGame}
             on:joinGame={handleJoinGame}
+            on:joinedOnlineGame={handleJoinedOnlineGame}
             on:showLogin={handleShowLogin}
             on:logout={handleLogout}
     />
@@ -470,13 +514,5 @@
   /* Background gradients */
   .bg-gradient-radial {
     background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
-  }
-
-  /* Responsive adjustments */
-  @media (max-width: 1024px) {
-    .absolute.left-8,
-    .absolute.right-8 {
-      top: 20%;
-    }
   }
 </style>
