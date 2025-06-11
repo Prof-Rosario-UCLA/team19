@@ -31,20 +31,24 @@ RUN npm install --only=production
 # Go back to root and copy EXACTLY what we built
 WORKDIR /app
 
-# Copy server build files (compiled TypeScript)
+# Copy server build files (the ACTUAL structure includes server/dist/server/)
 COPY server/dist/ ./server/dist/
 
 # Copy client build files (built Svelte app)
 COPY server/public/ ./server/public/
 
-# Verify everything is in place (this will show in Docker build logs)
+# Verify and fix the structure
 RUN echo "=== DOCKER BUILD VERIFICATION ===" && \
     echo "server/dist contents:" && \
     ls -la server/dist/ && \
-    echo "server/public contents:" && \
-    ls -la server/public/ && \
-    echo "index.js exists:" && \
-    ls -la server/dist/index.js
+    echo "Looking in server/dist/server/:" && \
+    ls -la server/dist/server/ && \
+    echo "Moving files to correct location..." && \
+    mv server/dist/server/* server/dist/ && \
+    mv server/dist/types/* server/dist/ && \
+    rmdir server/dist/server server/dist/types && \
+    echo "Fixed structure:" && \
+    ls -la server/dist/
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
