@@ -170,7 +170,7 @@
     </div>
 
     <!-- West Player (AI) -->
-    <div class="absolute left-8 top-1/2 transform -translate-y-1/2 z-30">
+    <div class="absolute left-8 top-1/2 transform -translate-y-1/2 z-30 max-h-screen" style="top: clamp(80px, 35%, calc(100vh - 120px));">
       <AIPlayer 
         playerName={players[1].name}
         cards={players[1].hand}
@@ -184,7 +184,7 @@
     </div>
 
     <!-- East Player (AI) -->
-    <div class="absolute right-8 top-1/2 transform -translate-y-1/2 z-30">
+    <div class="absolute right-8 top-1/2 transform -translate-y-1/2 z-30 max-h-screen" style="top: clamp(80px, 35%, calc(100vh - 120px));">
       <AIPlayer 
         playerName={players[3].name}
         cards={players[3].hand}
@@ -202,8 +202,6 @@
       {#if gameState.currentTrick.length === 0}
         <!-- Empty table message -->
         <div class="text-green-200 text-opacity-60 text-center font-medium">
-          <div class="text-lg">♠ ♥ ♦ ♣</div>
-          <div class="text-sm mt-1">Cards played will appear here</div>
         </div>
       {:else}
         <!-- Trick cards positioned naturally -->
@@ -295,7 +293,7 @@
           />
           
           {#if gameState.passingPhase}
-            <div class="mt-2 text-center">
+            <div class="mt-2 text-center max-[1023px]:hidden">
               <p class="text-green-200 text-sm mb-2">
                 Select 3 cards to pass {passingDirection}
               </p>
@@ -312,7 +310,7 @@
         </div>
 
         <!-- Game Status with Title -->
-        <div class="order-1 lg:order-2 text-center">
+        <div class="order-1 lg:order-2 text-center max-[1023px]:hidden">
           <div class="bg-black bg-opacity-40 rounded-lg p-3">
             <!-- Hearts Title moved here -->
             <div class="mb-3">
@@ -345,7 +343,7 @@
         </div>
 
         <!-- Scoreboard using component -->
-        <div class="order-3">
+        <div class="order-3 max-[1023px]:hidden">
           <ScoreBoard 
             scores={scores} 
             roundScores={roundScores} 
