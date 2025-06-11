@@ -202,8 +202,6 @@
       {#if gameState.currentTrick.length === 0}
         <!-- Empty table message -->
         <div class="text-green-200 text-opacity-60 text-center font-medium">
-          <div class="text-lg">♠ ♥ ♦ ♣</div>
-          <div class="text-sm mt-1">Cards played will appear here</div>
         </div>
       {:else}
         <!-- Trick cards positioned naturally -->
