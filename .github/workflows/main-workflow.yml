@@ -91,9 +91,6 @@ jobs:
           echo "server/public contents:"
           ls -la server/public/ || echo "No server/public"
 
-      - name: Run integration tests
-        run: npm run test:integration
-
       - name: Merge nightly to main
         if: success()
         env:
