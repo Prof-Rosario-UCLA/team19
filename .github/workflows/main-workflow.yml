@@ -57,6 +57,9 @@ jobs:
           echo "Making sure index.html exists:"
           find server/public/ -name "index.html" || echo "No index.html found"
 
+      - name: Run unit tests
+        run: npm run test:unit
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -96,24 +99,20 @@ jobs:
         run: |
           echo "Restoring build artifacts for integration tests..."
           
-          # Restore server build (artifacts are in dist/dist/, not dist/server/dist/)
-          if [ -d "dist/dist" ]; then
-            cp -r dist/dist/* server/dist/
+          # Restore server build
+          if [ -d "dist/server/dist" ]; then
+            cp -r dist/server/dist/* server/dist/
             echo "Server dist files restored"
           else
             echo "No server dist files found"
-            echo "Available directories:"
-            find dist/ -type d
           fi
           
-          # Restore client build (artifacts are in dist/public/, not dist/server/public/)
-          if [ -d "dist/public" ]; then
-            cp -r dist/public/* server/public/
+          # Restore client build
+          if [ -d "dist/server/public" ]; then
+            cp -r dist/server/public/* server/public/
             echo "Client files restored to server/public/"
           else
-            echo "No client files found"
-            echo "Available directories:"
-            find dist/ -type d
+            echo "No client files found in server/public/"
           fi
 
       - name: Run integration tests
