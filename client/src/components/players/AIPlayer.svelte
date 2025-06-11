@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import Hand from '../cards/Hand.svelte';
+  import Card from '../cards/Card.svelte';
   import type { CardType } from '../../lib/types';
   
   export let playerName: string;
@@ -14,6 +15,7 @@
   
   let isThinking = false;
   let selectedCardsForPassing: CardType[] = [];
+  let screenWidth = 0;
   
   // AI logic for playing a card
   function playRandomCard() {
@@ -59,7 +61,12 @@
   $: if (passingPhase && selectedCardsForPassing.length === 0) {
     setTimeout(() => selectCardsForPassing(), 500 + Math.random() * 1000);
   }
+  
+  // Check if we should show compact view
+  $: showCompactView = screenWidth <= 500;
 </script>
+
+<svelte:window bind:innerWidth={screenWidth} />
 
 <div class="player-container {position}">
   <div class="player-info">
@@ -74,12 +81,29 @@
   </div>
   
   <div class="hand-container {position === 'west' || position === 'east' ? 'vertical' : ''}">
-    <Hand 
-      cards={cards} 
-      playable={false}
-      isCurrentPlayer={isActive && !passingPhase}
-      isCurrentUser={false}
-    />
+    {#if showCompactView && cards.length > 0}
+      <!-- Compact view: single card + count -->
+      <div class="compact-hand">
+        <div class="single-card-display">
+          <Card 
+            suit={cards[0].suit} 
+            rank={cards[0].rank} 
+            faceUp={false}
+          />
+        </div>
+        <div class="card-count">
+          {cards.length}
+        </div>
+      </div>
+    {:else}
+      <!-- Normal view: all cards -->
+      <Hand 
+        cards={cards} 
+        playable={false}
+        isCurrentPlayer={isActive && !passingPhase}
+        isCurrentUser={false}
+      />
+    {/if}
   </div>
 </div>
 
@@ -125,5 +149,28 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+  
+  .compact-hand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .single-card-display {
+    position: relative;
+  }
+  
+  .card-count {
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    min-width: 20px;
+    text-align: center;
   }
 </style>
