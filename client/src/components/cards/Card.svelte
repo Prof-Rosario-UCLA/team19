@@ -14,7 +14,6 @@
   const cardWidth = getContext('cardWidth') || 80;
   const cardHeight = getContext('cardHeight') || 120;
   
-
   const isRed = suit === "hearts" || suit === "diamonds";
   const suitSymbol = {
     "hearts": "♥",
@@ -23,6 +22,20 @@
     "spades": "♠"
   }[suit];
   
+  // Simple accessibility labels
+  const suitName = {
+    "hearts": "Hearts",
+    "diamonds": "Diamonds", 
+    "clubs": "Clubs",
+    "spades": "Spades"
+  }[suit];
+  
+  const rankName = typeof rank === 'number' ? rank.toString() : 
+    rank === 'J' ? 'Jack' :
+    rank === 'Q' ? 'Queen' :
+    rank === 'K' ? 'King' :
+    rank === 'A' ? 'Ace' : rank.toString();
+  
   const dispatch = createEventDispatcher();
   
   function handleClick() {
@@ -30,76 +43,57 @@
       dispatch('cardSelect', { suit, rank });
     }
   }
-  // console.log("Card component loaded");
-
-  // import { getContext } from "svelte";
-  // import { createEventDispatcher } from 'svelte';
-  // import { Suit, Rank } from '../../../../types/game.js';
   
-  // export let suit: Suit;
-  // export let rank: Rank;
-  // export let faceUp: boolean = true;
-  // export let selectable: boolean = false;
-  // export let selected: boolean = false;
+  function handleKeydown(event: KeyboardEvent) {
+    if (selectable && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      handleClick();
+    }
+  }
   
-  // // Card dimensions from context
-  // const cardWidth = getContext('cardWidth') || 80;
-  // const cardHeight = getContext('cardHeight') || 120;
-  
-  // const isRed = suit === Suit.HEARTS || suit === Suit.DIAMONDS;
-  // const suitSymbol = {
-  //   [Suit.HEARTS]: "♥",
-  //   [Suit.DIAMONDS]: "♦",
-  //   [Suit.CLUBS]: "♣",
-  //   [Suit.SPADES]: "♠"
-  // }[suit];
-  
-  // const dispatch = createEventDispatcher();
-  
-  // function handleClick() {
-  //   if (selectable) {
-  //     dispatch('cardSelect', { suit, rank });
-  //   }
-  // }
+  // Basic accessible label
+  $: accessibleLabel = faceUp 
+    ? `${rankName} of ${suitName}${selected ? ', selected' : ''}`
+    : 'Face down card';
 </script>
 
 <div 
-  class="relative bg-white border border-gray-800 rounded-md shadow-md cursor-default transition-transform duration-200 ease-in-out
-         {selectable ? 'cursor-pointer hover:-translate-y-2' : ''} 
-         {selected ? '-translate-y-4 shadow-lg' : ''}"
+  class="relative bg-white border-2 rounded-md shadow-md transition-all duration-200 ease-in-out
+         {selectable ? 'cursor-pointer hover:-translate-y-2 focus:ring-4 focus:ring-blue-500' : 'cursor-default'} 
+         {selected ? '-translate-y-4 shadow-xl ring-4 ring-yellow-400' : ''}
+         {isRed && faceUp ? 'border-red-600' : 'border-gray-600'}"
   style="width: {cardWidth}px; height: {cardHeight}px;"
   on:click={handleClick}
-
-
-  role="button"
+  on:keydown={handleKeydown}
+  role={selectable ? 'button' : 'img'}
   tabindex={selectable ? 0 : -1}
-  on:keydown={(e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault(); // Prevent scrolling for Space key
-      handleClick();
-    }
-  }}
-
+  aria-label={accessibleLabel}
 >
   {#if faceUp}
+    <!-- Card face content -->
     <!-- Top left corner -->
-    <div class="absolute top-1 left-1 flex flex-col items-center font-bold {isRed ? 'text-red-600' : 'text-gray-900'}">
-      <div>{rank}</div>
-      <div>{suitSymbol}</div>
+    <div class="absolute top-1 left-1 flex flex-col items-center font-bold text-sm leading-none
+                {isRed ? 'text-red-700' : 'text-gray-900'}">
+      <div class="font-semibold">{rank}</div>
+      <div class="text-lg">{suitSymbol}</div>
     </div>
     
     <!-- Center symbol -->
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl {isRed ? 'text-red-600' : 'text-gray-900'}">
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-3xl font-bold
+                {isRed ? 'text-red-700' : 'text-gray-900'}">
       {suitSymbol}
     </div>
     
     <!-- Bottom right corner -->
-    <div class="absolute bottom-1 right-1 flex flex-col items-center font-bold rotate-180 {isRed ? 'text-red-600' : 'text-gray-900'}">
-      <div>{rank}</div>
-      <div>{suitSymbol}</div>
+    <div class="absolute bottom-1 right-1 flex flex-col items-center font-bold text-sm leading-none rotate-180
+                {isRed ? 'text-red-700' : 'text-gray-900'}">
+      <div class="font-semibold">{rank}</div>
+      <div class="text-lg">{suitSymbol}</div>
     </div>
   {:else}
     <!-- Card back design -->
-    <div class="w-full h-full rounded-md bg-gradient-to-br from-blue-600 to-blue-800 bg-[repeating-linear-gradient(45deg,theme(colors.blue.600),theme(colors.blue.600)_10px,theme(colors.blue.800)_10px,theme(colors.blue.800)_20px)]"></div>
+    <div class="w-full h-full rounded-md bg-gradient-to-br from-blue-700 to-blue-900 relative">
+      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 border-2 border-white rounded-full opacity-50"></div>
+    </div>
   {/if}
 </div>
