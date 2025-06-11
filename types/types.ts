@@ -30,6 +30,27 @@ export interface Card {
     value: number;
 }
 
+// Player interface
+export interface Player {
+    id: string;
+    name: string;
+    hand: Card[];
+    score: number;
+}
+
+// Game state interface
+export interface GameState {
+    players: Player[];
+    deck: Card[];
+    currentTrick: Card[];
+    trickLeader: number; // Index of the player who led the current trick
+    heartsBroken: boolean;
+    scores: { [playerId: string]: number };
+    handNumber: number; // Track the current hand number (0-based)
+    isFirstTrick: boolean; // Track if this is the first trick of the hand
+    tricksPlayed: number; // Track number of tricks played in current hand
+}
+
 // Basic player info that can be shared with all clients
 export interface PlayerPublicInfo {
     id: string;
@@ -41,10 +62,11 @@ export interface PlayerPublicInfo {
 // Game phase to track current state of the game
 export enum GamePhase {
     WAITING_FOR_PLAYERS = 'WAITING_FOR_PLAYERS',
-    DEALING = 'DEALING',
+    INITIALIZING = 'INITIALIZING',
+    PASSING = 'PASSING',
     PLAYING = 'PLAYING',
-    HAND_COMPLETE = 'HAND_COMPLETE',
-    GAME_OVER = 'GAME_OVER'
+    SCORING = 'SCORING',
+    FINISHED = 'FINISHED'
 }
 
 // Client-side game state (what each player sees)
@@ -58,6 +80,7 @@ export interface ClientGameState {
     tricksPlayed: number;
     gamePhase: GamePhase;
     currentPlayerTurn: number;
+    // myPlayerIndex: number; // Should see if this is necessary
     myHand?: Card[]; // Only the current player's cards
     playableCards?: Card[]; // Valid cards that can be played on their turn
 }

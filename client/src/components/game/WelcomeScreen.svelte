@@ -13,6 +13,7 @@
   let gameCode = '';
   let showJoinInput = false;
   let showCreateInput = false;
+  let showGameRules = false; // New state for game rules popup
   let roomName = '';
   let playerName = currentUser?.username || '';
   let socket: Socket | null = null;
@@ -299,6 +300,10 @@
     }
   }
 
+  function toggleGameRules() {
+    showGameRules = !showGameRules;
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter') {
       if (showJoinInput) {
@@ -306,6 +311,11 @@
       } else if (showCreateInput) {
         createOnlineRoom();
       }
+    }
+    
+    // Close game rules popup with Escape key
+    if (event.key === 'Escape' && showGameRules) {
+      showGameRules = false;
     }
   }
 
@@ -344,7 +354,7 @@
   };
 </script>
 
-<div class="min-h-screen relative">
+<div class="min-h-screen relative overflow-hidden">
   {#if inWaitingRoom}
     <!-- Waiting Room Component -->
     <WaitingRoom
@@ -361,8 +371,8 @@
     />
   {:else}
     <!-- Regular Welcome Screen Content -->
-    <!-- Leaderboard in top right -->
-    <div class="absolute top-4 right-4 z-10">
+    <!-- Leaderboard in top right (desktop) or below main card (mobile) -->
+    <div class="absolute top-4 right-4 z-10 hidden min-[800px]:block">
       <Leaderboard {currentUser} {authToken} />
     </div>
 
@@ -401,16 +411,16 @@
       </div>
     </div>
 
-    <div class="min-h-screen flex items-center justify-center p-4">
-      <div class="max-w-2xl mx-auto">
-        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
+    <div class="h-screen flex items-center justify-center p-4 overflow-y-auto">
+      <div class="max-w-2xl mx-auto w-full min-[800px]:pr-10">
+        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-6">
 
           <!-- Header Section -->
-          <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">♠ Hearts ♥</h1>
-            <p class="text-gray-600 text-lg">The Classic Card Game</p>
+          <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">♠ Hearts ♥</h1>
+            <p class="text-gray-600">The Classic Card Game</p>
             {#if currentUser}
-              <p class="text-green-600 text-sm mt-2">Logged in as {currentUser.username}</p>
+              <p class="text-green-600 text-sm mt-1">Logged in as {currentUser.username}</p>
             {/if}
           </div>
 
@@ -428,11 +438,11 @@
           {/if}
 
           <!-- Game Options Section -->
-          <div class="mb-8">
-            <h3 class="text-xl font-semibold mb-4 text-gray-800 text-center">Game Options:</h3>
+          <div class="mb-6">
+            <h3 class="text-lg font-semibold mb-4 text-gray-800 text-center">Game Options:</h3>
 
             <!-- Player Name Input -->
-            <div class="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <div class="mb-4 bg-gray-50 p-3 rounded-xl border border-gray-200">
               <label for="globalPlayerName" class="block text-sm font-medium text-gray-700 mb-2">
                 Your Name:
               </label>
@@ -450,10 +460,10 @@
               </p>
             </div>
 
-            <div class="grid gap-4 mb-6">
+            <div class="grid gap-3 mb-4">
               <!-- Local Game Button -->
               <button
-                      class="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                      class="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                       on:click={startLocalGame}
               >
                 🎮 Play Local Game
@@ -463,7 +473,7 @@
               <div class="space-y-3">
                 <!-- Create Online Room -->
                 <button
-                        class="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                        class="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                         on:click={toggleCreateInput}
                         disabled={!socket?.connected}
                 >
@@ -505,7 +515,7 @@
 
                 <!-- Join Online Room -->
                 <button
-                        class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                        class="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                         on:click={toggleJoinInput}
                         disabled={!socket?.connected}
                 >
@@ -546,7 +556,7 @@
                 <!-- Browse Available Rooms -->
                 {#if socket?.connected}
                   <button
-                          class="w-full px-6 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                          class="w-full px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                           on:click={toggleRoomsList}
                   >
                     🏠 Browse Available Rooms ({availableRooms.length})
@@ -609,49 +619,115 @@
             </div>
           </div>
 
-          <!-- Rules Section -->
-          <div class="mb-8">
-            <h3 class="text-xl font-semibold mb-4 text-gray-800">Game Rules:</h3>
-            <div class="grid md:grid-cols-2 gap-4 text-sm text-gray-700">
-              <!-- Basic Rules -->
-              <div class="space-y-2">
-                {#each gameRules.basic as rule}
-                  <div class="flex items-start gap-2">
-                    <span class="text-green-600 font-bold">•</span>
-                    <span>{rule}</span>
-                  </div>
-                {/each}
-              </div>
-
-              <!-- Scoring Rules -->
-              <div class="space-y-2">
-                {#each gameRules.scoring as rule}
-                  <div class="flex items-start gap-2">
-                    <span class="text-red-600 font-bold">•</span>
-                    <span>{rule}</span>
-                  </div>
-                {/each}
-              </div>
+          <!-- Game Rules Button and Footer Info -->
+          <div class="text-center">
+            <button
+                    on:click={toggleGameRules}
+                    class="mb-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+            >
+              📖 Game Rules
+            </button>
+            
+            <div class="text-xs text-gray-500">
+              <p>Local games work offline • Online games connect you with other players</p>
+              {#if !currentUser}
+                <p class="mt-1">
+                  <button
+                          on:click={() => dispatch('showLogin')}
+                          class="text-green-600 hover:text-green-700 font-medium"
+                  >
+                    Create an account or log in
+                  </button>
+                  to save your stats and compete on the leaderboard!
+                </p>
+              {/if}
             </div>
           </div>
-
-          <!-- Footer Info -->
-          <div class="text-center text-xs text-gray-500">
-            <p>Local games work offline • Online games connect you with other players</p>
-            {#if !currentUser}
-              <p class="mt-1">
-                <button
-                        on:click={() => dispatch('showLogin')}
-                        class="text-green-600 hover:text-green-700 font-medium"
-                >
-                  Create an account or log in
-                </button>
-                to save your stats and compete on the leaderboard!
-              </p>
-            {/if}
-          </div>
+        </div>
+        
+        <!-- Mobile Leaderboard (below main card on smaller screens) -->
+        <div class="min-[800px]:hidden max-[419px]:hidden w-full max-w-md mx-auto">
+          <Leaderboard {currentUser} {authToken} />
         </div>
       </div>
     </div>
+
+    <!-- Game Rules Modal Popup -->
+    {#if showGameRules}
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+          <div class="p-6">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-2xl font-bold text-gray-800">📖 Hearts Game Rules</h3>
+              <button
+                      on:click={toggleGameRules}
+                      class="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <!-- Rules Content -->
+            <div class="grid md:grid-cols-2 gap-6 text-sm text-gray-700">
+              <!-- Basic Rules -->
+              <div>
+                <h4 class="text-lg font-semibold text-gray-800 mb-3">Basic Rules</h4>
+                <div class="space-y-2">
+                  {#each gameRules.basic as rule}
+                    <div class="flex items-start gap-2">
+                      <span class="text-green-600 font-bold">•</span>
+                      <span>{rule}</span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Scoring Rules -->
+              <div>
+                <h4 class="text-lg font-semibold text-gray-800 mb-3">Scoring</h4>
+                <div class="space-y-2">
+                  {#each gameRules.scoring as rule}
+                    <div class="flex items-start gap-2">
+                      <span class="text-red-600 font-bold">•</span>
+                      <span>{rule}</span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            </div>
+
+            <!-- Additional Rules Section -->
+            <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+              <h4 class="text-lg font-semibold text-gray-800 mb-3">Special Rules</h4>
+              <div class="space-y-2 text-sm text-gray-700">
+                <div class="flex items-start gap-2">
+                  <span class="text-blue-600 font-bold">•</span>
+                  <span>No hearts or Queen of Spades can be played on the first trick</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-blue-600 font-bold">•</span>
+                  <span>Hearts cannot be led until hearts have been "broken" (played in a trick)</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-blue-600 font-bold">•</span>
+                  <span>"Shooting the moon" - Taking all hearts and Queen of Spades gives other players 26 points</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Close Button -->
+            <div class="mt-6 text-center">
+              <button
+                      on:click={toggleGameRules}
+                      class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
   {/if}
 </div>

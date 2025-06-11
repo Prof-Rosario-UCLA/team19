@@ -1,5 +1,5 @@
 import { Game, GamePhase } from './Game.js';
-import { Card } from './types.js';
+import { Card } from '../../types/types.js';
 
 interface GameRoom {
     game: Game;
@@ -86,6 +86,41 @@ export class GameManager {
 
         const playerIndex = room.players.get(socketId);
         if (playerIndex === undefined) return false;
+
+        // Log the play attempt
+        console.log('GameManager playCard:', {
+            roomId,
+            playerIndex,
+            card,
+            currentPhase: room.game.getCurrentPhase(),
+            currentPlayerIndex: room.game.getCurrentPlayerIndex(),
+            isFirstTrick: room.game.getGameState().isFirstTrick
+        });
+
+        // Validate it's the correct phase and player's turn
+        if (room.game.getCurrentPhase() !== 'PLAYING' || 
+            playerIndex !== room.game.getCurrentPlayerIndex()) {
+            console.log('Invalid phase or turn:', {
+                phase: room.game.getCurrentPhase(),
+                currentPlayerIndex: room.game.getCurrentPlayerIndex(),
+                playerIndex
+            });
+            return false;
+        }
+
+        // Get valid moves for the player
+        const validMoves = room.game.getValidMoves(playerIndex);
+        console.log('Valid moves for player:', validMoves);
+
+        // Check if the card is in valid moves
+        const isValidMove = validMoves.some(
+            validCard => validCard.suit === card.suit && validCard.rank === card.rank
+        );
+
+        if (!isValidMove) {
+            console.log('Invalid move - card not in valid moves');
+            return false;
+        }
 
         return room.game.playCard(playerIndex, card);
     }

@@ -11,7 +11,7 @@ import {
     calculateTrickPoints,
     isValidPlay
 } from '../../server/game/Deck.js';
-import { Card, Suit, Rank } from '../../server/game/types.js';
+import { Card, Suit, Rank } from '../../types/types.js';
 
 describe('Deck Module', () => {
     let sandbox: sinon.SinonSandbox;
