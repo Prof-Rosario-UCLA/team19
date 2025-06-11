@@ -10,7 +10,11 @@
     "skipLibCheck": true
   },
   "include": [
-    "**/*.ts",
-    "types/**/*.d.ts"
+    "./**/*.ts",
+    "./types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
   ]
 }
