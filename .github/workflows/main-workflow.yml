@@ -96,21 +96,28 @@ jobs:
         run: |
           echo "Restoring build artifacts for integration tests..."
           
-          # Restore server build
-          if [ -d "dist/server/dist" ]; then
-            cp -r dist/server/dist/* server/dist/
+          # Restore server build (artifacts are in dist/dist/, not dist/server/dist/)
+          if [ -d "dist/dist" ]; then
+            cp -r dist/dist/* server/dist/
             echo "Server dist files restored"
           else
             echo "No server dist files found"
+            echo "Available directories:"
+            find dist/ -type d
           fi
           
-          # Restore client build
-          if [ -d "dist/server/public" ]; then
-            cp -r dist/server/public/* server/public/
+          # Restore client build (artifacts are in dist/public/, not dist/server/public/)
+          if [ -d "dist/public" ]; then
+            cp -r dist/public/* server/public/
             echo "Client files restored to server/public/"
           else
-            echo "No client files found in server/public/"
+            echo "No client files found"
+            echo "Available directories:"
+            find dist/ -type d
           fi
+
+      - name: Run integration tests
+        run: npm run test:integration
 
       - name: Merge nightly to main
         if: success()
@@ -150,42 +157,40 @@ jobs:
       - name: Restore build files for Docker
         run: |
           echo "Restoring build files for Docker build..."
-      
+
           # Create target directories
           mkdir -p server/dist
           mkdir -p server/public
-      
-          # Restore server build files (artifacts are in dist/server/dist/)
-          if [ -d "dist/server/dist" ]; then
-            cp -r dist/server/dist/* server/dist/
+
+          # Restore server build files (artifacts are in dist/dist/, not dist/server/dist/)
+          if [ -d "dist/dist" ]; then
+            cp -r dist/dist/* server/dist/
             echo "Server build files restored"
             echo "Server dist contents:"
             ls -la server/dist/
           else
-            echo "ERROR: No server build files found in dist/server/dist"
-            echo "Available artifact structure:"
-            find dist/ -type d | head -10
+            echo "ERROR: No server build files found in dist/dist"
             exit 1
           fi
-      
-          # Restore client build files (artifacts are in dist/server/public/)
-          if [ -d "dist/server/public" ]; then
-            cp -r dist/server/public/* server/public/
+
+          # Restore client build files (artifacts are in dist/public/, not dist/server/public/)
+          if [ -d "dist/public" ]; then
+            cp -r dist/public/* server/public/
             echo "Client build files restored"
             echo "Client files contents:"
             ls -la server/public/
+            echo "Index.html check:"
+            ls -la server/public/index.html || echo "No index.html found"
           else
-            echo "ERROR: No client build files found in dist/server/public"
-            echo "Available artifact structure:"
-            find dist/ -type d | head -10
+            echo "ERROR: No client build files found in dist/public"
             exit 1
           fi
-      
+
           echo "Final verification - files ready for Docker:"
           echo "server/dist/:"
           ls -la server/dist/ | head -5
           echo "server/public/:"
-          ls -la server/public/ | head -5
+          ls -la server/public/
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
