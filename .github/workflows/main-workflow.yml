@@ -53,8 +53,8 @@ jobs:
         with:
           name: build-artifacts
           path: |
-            server/dist
-            server/public
+            server/dist/
+            server/public/
 
   nightly-integration:
     needs: build-and-test
@@ -91,6 +91,9 @@ jobs:
           echo "server/public contents:"
           ls -la server/public/ || echo "No server/public"
 
+      - name: Run integration tests
+        run: npm run test:integration
+
       - name: Merge nightly to main
         if: success()
         env:
@@ -118,16 +121,31 @@ jobs:
           name: build-artifacts
           path: .
 
+      - name: Debug artifact structure
+        run: |
+          echo "=== DEBUGGING ARTIFACT DOWNLOAD ==="
+          echo "Root directory contents:"
+          ls -la
+          echo ""
+          echo "Looking for any dist directories:"
+          find . -name "dist" -type d 2>/dev/null || echo "No dist directories found"
+          echo ""
+          echo "Looking for any public directories:"
+          find . -name "public" -type d 2>/dev/null || echo "No public directories found"
+          echo ""
+          echo "All directories:"
+          find . -type d | head -20
+          echo ""
+          echo "All files:"
+          find . -type f | head -20
+
       - name: Verify Docker build context
         run: |
           echo "=== DOCKER BUILD CONTEXT VERIFICATION ==="
           echo "server/dist contents:"
-          ls -la server/dist/
+          ls -la server/dist/ || echo "❌ server/dist/ does not exist"
           echo "server/public contents:"
-          ls -la server/public/
-          echo "Files Docker will copy:"
-          echo "✅ server/dist/ -> /app/server/dist/"
-          echo "✅ server/public/ -> /app/server/public/"
+          ls -la server/public/ || echo "❌ server/public/ does not exist"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
