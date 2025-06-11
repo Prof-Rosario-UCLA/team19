@@ -59,7 +59,7 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
             }
 
             // Create in GameManager for real-time game state
-            const gameRoom = gameManager.createRoom(room_code, name);
+            const gameRoom = await gameManager.createRoom(room_code, name);
 
             if (gameRoom) {
                 callback({
@@ -80,10 +80,10 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
 
     // Join a room (checks database)
     socket.on('join_room', async ({
-                                      roomId,
-                                      playerName,
-                                      user
-                                  }: {
+        roomId,
+        playerName,
+        user
+    }: {
         roomId: string,
         playerName: string,
         user?: { user_id: number, username: string }
@@ -117,7 +117,7 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
             }
 
             // Always try to join the GameManager room for real-time gameplay
-            const success = gameManager.joinRoom(roomId, socket.id, playerName);
+            const success = await gameManager.joinRoom(roomId, socket.id, playerName);
 
             if (success) {
                 socket.join(roomId);
@@ -147,9 +147,9 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
 
     // Leave room (updates database)
     socket.on('leave_room', async ({
-                                       roomId,
-                                       user
-                                   }: {
+        roomId,
+        user
+    }: {
         roomId: string,
         user?: { user_id: number, username: string }
     }, callback) => {
@@ -176,7 +176,7 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
             }
 
             // Remove from GameManager
-            gameManager.leaveRoom(socket.id);
+            await gameManager.leaveRoom(socket.id);
             socket.leave(roomId);
             io.emit('rooms_updated', gameManager.getRooms());
 
@@ -188,14 +188,14 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
     });
 
     // Select cards for passing
-    socket.on('select_passing_cards', ({ roomId, cards }: { roomId: string, cards: Card[] }, callback) => {
+    socket.on('select_passing_cards', async ({ roomId, cards }: { roomId: string, cards: Card[] }, callback) => {
         const room = gameManager.getRoom(roomId);
         if (!room) {
             callback({ success: false, error: 'Room not found' });
             return;
         }
 
-        const success = gameManager.selectPassingCards(roomId, socket.id, cards);
+        const success = await gameManager.selectPassingCards(roomId, socket.id, cards);
         if (success) {
             // Send individual game states to each player
             room.players.forEach((playerIndex, socketId) => {
@@ -213,7 +213,7 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
     });
 
     // Play a card
-    socket.on('play_card', ({ roomId, card }: { roomId: string, card: Card }, callback) => {
+    socket.on('play_card', async ({ roomId, card }: { roomId: string, card: Card }, callback) => {
         const room = gameManager.getRoom(roomId);
         if (!room) {
             callback({ success: false, error: 'Room not found' });
@@ -235,7 +235,7 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
             currentTrick: room.game.getGameState().currentTrick
         });
 
-        const success = gameManager.playCard(roomId, socket.id, card);
+        const success = await gameManager.playCard(roomId, socket.id, card);
         if (success) {
             // Send individual game states to each player
             room.players.forEach((playerIndex, socketId) => {
@@ -257,7 +257,7 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
     socket.on('disconnect', async () => {
         try {
             // GameManager handles the in-memory cleanup
-            gameManager.leaveRoom(socket.id);
+            await gameManager.leaveRoom(socket.id);
             io.emit('rooms_updated', gameManager.getRooms());
             console.log('User disconnected:', socket.id);
         } catch (error) {
