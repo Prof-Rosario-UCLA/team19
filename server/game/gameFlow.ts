@@ -26,10 +26,14 @@ export interface PassingState {
 
 // Initialize a new game state
 export function initializeGame(playerIds: string[], playerNames: string[]): GameState {
-    if (playerIds.length !== 4 || playerNames.length !== 4) {
-        throw new Error('Hearts requires exactly 4 players');
+    if (playerIds.length !== playerNames.length) {
+        throw new Error('Player IDs and names must match in length');
     }
-    
+
+    if (playerIds.length > 4) {
+        throw new Error('Hearts allows maximum 4 players');
+    }
+
     return {
         players: playerIds.map((id, index) => ({
             id,
