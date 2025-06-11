@@ -58,12 +58,27 @@
     isConnecting = true;
     connectionError = '';
 
-    socket = io(window.location.origin);
+    // Check for development mode and set appropriate socket URL
+    const isDevelopment = import.meta.env?.VITE_DEV_MODE === 'true';
+
+    const socketUrl = isDevelopment ? 'http://localhost:3000' : window.location.origin;
+
+    console.log('Environment variables:', import.meta.env);
+    console.log('DEV_MODE value:', import.meta.env?.VITE_DEV_MODE);
+    console.log('Is Development:', isDevelopment);
+    console.log('Socket URL:', socketUrl);
+    console.log('Current origin:', window.location.origin);
+
+    socket = io(socketUrl, {
+      transports: ['websocket', 'polling'], // Explicitly specify transports
+      timeout: 10000, // 10 second timeout
+      forceNew: true // Force a new connection
+    });
 
     socket.on('connect', () => {
       connectionStatus = 'Connected';
       isConnecting = false;
-      console.log('Connected to server');
+      console.log('Connected to server at:', socketUrl);
       getRooms();
     });
 
@@ -76,7 +91,8 @@
     socket.on('connect_error', (error) => {
       connectionStatus = 'Connection Failed';
       isConnecting = false;
-      connectionError = 'Could not connect to server. Make sure the server is running on localhost:3000';
+      const serverUrl = isDevelopment ? 'localhost:3000' : 'the server';
+      connectionError = `Could not connect to server. Make sure the server is running on ${serverUrl}`;
       console.error('Connection error:', error);
     });
 
