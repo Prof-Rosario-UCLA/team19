@@ -170,7 +170,7 @@
     </div>
 
     <!-- West Player (AI) -->
-    <div class="absolute left-8 top-1/2 transform -translate-y-1/2 z-30 max-h-screen" style="top: clamp(80px, 25%, calc(100vh - 120px));">
+    <div class="absolute left-8 top-1/2 transform -translate-y-1/2 z-30 max-h-screen" style="top: clamp(80px, 35%, calc(100vh - 120px));">
       <AIPlayer 
         playerName={players[1].name}
         cards={players[1].hand}
@@ -184,7 +184,7 @@
     </div>
 
     <!-- East Player (AI) -->
-    <div class="absolute right-8 top-1/2 transform -translate-y-1/2 z-30 max-h-screen" style="top: clamp(80px, 25%, calc(100vh - 120px));">
+    <div class="absolute right-8 top-1/2 transform -translate-y-1/2 z-30 max-h-screen" style="top: clamp(80px, 35%, calc(100vh - 120px));">
       <AIPlayer 
         playerName={players[3].name}
         cards={players[3].hand}
