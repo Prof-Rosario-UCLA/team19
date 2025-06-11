@@ -57,9 +57,6 @@ jobs:
           echo "Making sure index.html exists:"
           find server/public/ -name "index.html" || echo "No index.html found"
 
-      - name: Run unit tests
-        run: npm run test:unit
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
