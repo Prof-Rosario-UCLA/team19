@@ -23,23 +23,28 @@ ENV PORT=$PORT
 # Set working directory
 WORKDIR /app
 
-# Copy server package.json and install server dependencies
+# Copy server package.json and install dependencies
 COPY server/package*.json ./server/
 WORKDIR /app/server
 RUN npm install --only=production
 
-# Go back to root and copy pre-built files
+# Go back to root and copy EXACTLY what we built
 WORKDIR /app
 
-# Copy the pre-built server files
+# Copy server build files (compiled TypeScript)
 COPY server/dist/ ./server/dist/
 
-# Copy the pre-built client files
+# Copy client build files (built Svelte app)
 COPY server/public/ ./server/public/
 
-# Clean up and cache clean
-WORKDIR /app/server
-RUN npm cache clean --force
+# Verify everything is in place (this will show in Docker build logs)
+RUN echo "=== DOCKER BUILD VERIFICATION ===" && \
+    echo "server/dist contents:" && \
+    ls -la server/dist/ && \
+    echo "server/public contents:" && \
+    ls -la server/public/ && \
+    echo "index.js exists:" && \
+    ls -la server/dist/index.js
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -54,10 +59,6 @@ WORKDIR /app/server
 
 # Expose port 3000
 EXPOSE 3000
-
-# Health check for GKE
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 # Start the application
 CMD ["npm", "start"]
