@@ -26,27 +26,41 @@
   {#if !gameStarted}
     <button 
       on:click={startGame}
-      class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors"
+      class="bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 text-white font-medium py-3 px-6 rounded-md shadow-sm transition-colors"
+      aria-label="Start new Hearts game"
     >
-      Start Game
+      🎮 Start Game
     </button>
   {:else if gameOver}
     <button 
       on:click={restartGame}
-      class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors"
+      class="bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 text-white font-medium py-3 px-6 rounded-md shadow-sm transition-colors"
+      aria-label="Start new game with reset scores"
     >
-      Play Again
+      🔄 Play Again
     </button>
   {:else if passingPhase}
     <button 
       on:click={passDone}
-      class="bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors"
+      class="bg-amber-600 hover:bg-amber-700 focus:ring-4 focus:ring-amber-300 text-white font-medium py-3 px-6 rounded-md shadow-sm transition-colors"
+      aria-label="Confirm selected cards for passing"
     >
-      Confirm Pass
+      ✓ Confirm Pass
     </button>
   {:else if waitingForPlay}
-    <div class="animate-pulse text-gray-700 font-medium">
-      Waiting for play...
+    <div class="flex items-center gap-3 px-6 py-3" 
+         role="status" 
+         aria-label="Waiting for other players to play">
+      <div class="animate-pulse w-3 h-3 bg-amber-500 rounded-full"></div>
+      <span class="text-gray-800 font-medium">Waiting for play...</span>
     </div>
   {/if}
 </div>
+
+<style>
+  /* Ensure minimum touch target size */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+</style>
