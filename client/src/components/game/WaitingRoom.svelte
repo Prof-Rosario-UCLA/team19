@@ -1,25 +1,22 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import type { Socket } from 'socket.io-client';
 
-  export let socket: Socket | null = null;
-  export let roomId: string = '';
-  export let roomName: string = '';
-  export let playerName: string = '';
-  export let currentUser: any = null; // Now expects user object
+  // Import socket stores
+  import {
+    currentRoomId,
+    currentRoomName,
+    players,
+    roomPlayerCount,
+    gameStarting,
+    selfPlayerName,
+    leaveRoom
+  } from '../../lib/stores/socket';
+
+  export let currentUser: any = null;
   export let authToken: string | null = null;
   export let isLoggedIn: boolean = false;
 
   const dispatch = createEventDispatcher();
-
-  let playerCount = 1;
-  let roomData: any = null;
-  let players: Array<{ name: string; index: number; isYou: boolean }> = [];
-  let gameStarting = false;
-  let connectionError = '';
-
-  // Polling interval for room updates
-  let pollInterval: ReturnType<typeof setInterval>;
 
   // Helper function to make authenticated API calls
   function makeAuthenticatedRequest(url: string, options: any = {}) {
@@ -38,46 +35,19 @@
     });
   }
 
-  function updateRoomInfo() {
-    if (!socket?.connected || !roomId) return;
+  async function handleLeaveRoom() {
+    // Leave via socket store
+    const user = isLoggedIn && currentUser ? {
+      user_id: currentUser.user_id,
+      username: currentUser.username
+    } : undefined;
 
-    socket.emit('get_rooms', (rooms: any[]) => {
-      const currentRoom = rooms.find(room => room.id === roomId);
-      if (currentRoom) {
-        playerCount = currentRoom.playerCount;
-
-        if (playerCount === 4 && !gameStarting) {
-          gameStarting = true;
-          setTimeout(() => {
-            dispatch('gameReady', { roomId });
-          }, 2000);
-        }
-      }
-    });
-  }
-
-  async function leaveRoom() {
-    if (socket?.connected) {
-      // Leave socket room
-      const leaveData = {
-        roomId,
-        ...(isLoggedIn && currentUser ? {
-          user: {
-            user_id: currentUser.user_id,
-            username: currentUser.username
-          }
-        } : {})
-      };
-
-      socket.emit('leave_room', leaveData, (response: any) => {
-        console.log('Left socket room:', response);
-      });
-    }
+    leaveRoom(user);
 
     // Also leave via REST API if logged in
-    if (isLoggedIn && authToken) {
+    if (isLoggedIn && authToken && $currentRoomId) {
       try {
-        const response = await makeAuthenticatedRequest(`/api/rooms/${roomId}/leave`, {
+        const response = await makeAuthenticatedRequest(`/api/rooms/${$currentRoomId}/leave`, {
           method: 'DELETE'
         });
 
@@ -87,119 +57,69 @@
         console.error('Error leaving room via API:', error);
       }
     }
-
-    dispatch('leaveRoom');
   }
 
   function copyRoomCode() {
-    navigator.clipboard.writeText(roomId).then(() => {
-      console.log('Room code copied to clipboard');
-    }).catch(() => {
-      console.log('Failed to copy room code');
-    });
-  }
-
-  // Listen for real-time updates
-  function setupSocketListeners() {
-    if (!socket) return;
-
-    socket.on('rooms_updated', (rooms: any[]) => {
-      const currentRoom = rooms.find(room => room.id === roomId);
-      if (currentRoom) {
-        playerCount = currentRoom.playerCount;
-
-        if (playerCount === 4 && !gameStarting) {
-          gameStarting = true;
-          setTimeout(() => {
-            dispatch('gameReady', { roomId });
-          }, 2000);
-        }
-      }
-    });
-
-    socket.on('game_state_updated', (data: any) => {
-      console.log('Game state updated in waiting room:', data);
-
-      // Extract the actual game state data
-      const { gameState, roomId } = data;
-
-      // Dispatch event with properly formatted game state
-      dispatch('gameStarted', {
-        gameState: {
-          gameStarted: true,
-          gameOver: false,
-          roundNumber: gameState.roundNumber || 1,
-          passingDirection: gameState.passingDirection || 'left',
-          passingPhase: gameState.passingPhase || false,
-          currentPlayerIndex: gameState.currentPlayerIndex || 0,
-          players: gameState.players || ['You', 'Player 2', 'Player 3', 'Player 4'],
-          hands: gameState.hands || {},
-          scores: gameState.scores || {},
-          roundScores: gameState.roundScores || {},
-          currentTrick: gameState.currentTrick || [],
-          trickWinner: gameState.trickWinner || null,
-          heartsBroken: gameState.heartsBroken || false
-        },
-        roomId
+    if ($currentRoomId) {
+      navigator.clipboard.writeText($currentRoomId).then(() => {
+        console.log('Room code copied to clipboard');
+      }).catch(() => {
+        console.log('Failed to copy room code');
       });
-    });
-
-    socket.on('player_joined', (data: any) => {
-      console.log('Player joined:', data);
-      updateRoomInfo();
-    });
-
-    socket.on('player_left', (data: any) => {
-      console.log('Player left:', data);
-      updateRoomInfo();
-    });
-
-    socket.on('cards_dealt', (data: any) => {
-      console.log('Cards dealt:', data);
-      dispatch('cardsDealt', data);
-    });
-
-    socket.on('trick_played', (data: any) => {
-      console.log('Trick played:', data);
-      dispatch('trickPlayed', data);
-    });
-
-    socket.on('round_ended', (data: any) => {
-      console.log('Round ended:', data);
-      dispatch('roundEnded', data);
-    });
-  }
-
-  function cleanup() {
-    if (pollInterval) {
-      clearInterval(pollInterval);
     }
   }
 
-  onMount(() => {
-    setupSocketListeners();
-    updateRoomInfo();
+  // Generate display players list - only show actual players + waiting slots
+  $: displayPlayers = Array.from({ length: 4 }, (_, i) => {
+    // If we have actual player data from server and it's within the player count
+    if (i < $roomPlayerCount && $players[i] && $players[i].name !== `Player ${i + 1}`) {
+      return {
+        name: $players[i].name,
+        index: i,
+        isYou: $players[i].name === $selfPlayerName
+      };
+    }
+    // Special case: if it's just the room creator (player count = 1) and we're looking at slot 0
+    else if (i === 0 && $roomPlayerCount === 1 && $selfPlayerName) {
+      return {
+        name: $selfPlayerName,
+        index: 0,
+        isYou: true
+      };
+    }
+    // Show "waiting" for all slots beyond the current player count
+    else {
+      return {
+        name: 'Waiting...',
+        index: i,
+        isYou: false
+      };
+    }
+  });
 
-    pollInterval = setInterval(updateRoomInfo, 2000);
+  // Debug logging
+  $: {
+    console.log('WaitingRoom debug:', {
+      selfPlayerName: $selfPlayerName,
+      players: $players,
+      roomPlayerCount: $roomPlayerCount,
+      currentRoomId: $currentRoomId,
+      currentRoomName: $currentRoomName,
+      displayPlayers: displayPlayers,
+      playersLength: $players.length
+    });
+  }
+
+  // Progress calculation
+  $: progress = ($roomPlayerCount / 4) * 100;
+
+  onMount(() => {
+    // Any initialization logic can go here
   });
 
   onDestroy(() => {
-    cleanup();
+    // Any cleanup logic can go here
   });
-
-  // Generate placeholder player list
-  $: players = Array.from({ length: 4 }, (_, i) => {
-    if (i === 0) {
-      return { name: playerName, index: 0, isYou: true };
-    } else if (i < playerCount) {
-      return { name: `Player ${i + 1}`, index: i, isYou: false };
-    } else {
-      return { name: 'Waiting...', index: i, isYou: false };
-    }
-  });
-
-  // Progress calculation
-  $: progress = (playerCount / 4) * 100;
 </script>
 
 <div class="min-h-screen relative">
@@ -240,10 +160,12 @@
         <!-- Room Info Section -->
         <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 mb-8">
           <div class="text-center mb-4">
-            <h2 class="text-2xl font-bold text-gray-800 mb-2">{roomName}</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">{$currentRoomName || 'Game Room'}</h2>
             <div class="flex items-center justify-center gap-2 mb-3">
               <span class="text-gray-600">Room Code:</span>
-              <code class="bg-gray-800 text-green-400 px-3 py-1 rounded font-mono text-lg tracking-wider">{roomId}</code>
+              <code class="bg-gray-800 text-green-400 px-3 py-1 rounded font-mono text-lg tracking-wider">
+                {$currentRoomId || 'Loading...'}
+              </code>
               <button
                       on:click={copyRoomCode}
                       class="text-blue-600 hover:text-blue-800 text-sm underline"
@@ -262,7 +184,7 @@
           <div class="mb-4">
             <div class="flex justify-between text-sm text-gray-600 mb-2">
               <span>Players</span>
-              <span>{playerCount}/4</span>
+              <span>{$roomPlayerCount}/4</span>
             </div>
             <div class="w-full bg-gray-200 rounded-full h-3">
               <div
@@ -274,7 +196,7 @@
 
           <!-- Player List -->
           <div class="grid grid-cols-2 gap-3">
-            {#each players as player (player.index)}
+            {#each displayPlayers as player (player.index)}
               <div class="bg-white rounded-lg p-3 border-2 {player.isYou ? 'border-green-500 bg-green-50' : player.name === 'Waiting...' ? 'border-gray-300 bg-gray-50' : 'border-blue-500 bg-blue-50'}">
                 <div class="flex items-center gap-2">
                   <div class="w-3 h-3 rounded-full {player.isYou ? 'bg-green-500' : player.name === 'Waiting...' ? 'bg-gray-400' : 'bg-blue-500'}"></div>
@@ -293,19 +215,19 @@
 
         <!-- Game Status -->
         <div class="text-center mb-8">
-          {#if gameStarting}
+          {#if $gameStarting}
             <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <div class="text-yellow-800 font-semibold mb-2">🎮 Starting Game...</div>
               <div class="text-yellow-700">All players joined! Game starting in a moment...</div>
             </div>
-          {:else if playerCount === 4}
+          {:else if $roomPlayerCount === 4}
             <div class="bg-green-50 border border-green-200 rounded-lg p-4">
               <div class="text-green-800 font-semibold mb-2">✅ Ready to Start!</div>
               <div class="text-green-700">All players are here. Starting the game...</div>
             </div>
           {:else}
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div class="text-blue-800 font-semibold mb-2">⏳ Waiting for {4 - playerCount} more player{4 - playerCount !== 1 ? 's' : ''}</div>
+              <div class="text-blue-800 font-semibold mb-2">⏳ Waiting for {4 - $roomPlayerCount} more player{4 - $roomPlayerCount !== 1 ? 's' : ''}</div>
               <div class="text-blue-700">Share the room code with friends to start playing!</div>
             </div>
           {/if}
@@ -314,7 +236,7 @@
         <!-- Action Buttons -->
         <div class="flex gap-4 justify-center">
           <button
-                  on:click={leaveRoom}
+                  on:click={handleLeaveRoom}
                   class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors font-medium"
           >
             Leave Room

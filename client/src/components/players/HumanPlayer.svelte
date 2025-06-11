@@ -8,7 +8,7 @@
   export let isActive: boolean = false;
   export let score: number = 0;
   export let passingPhase: boolean = false;
-  export let isOnlineGame: boolean = false; // Add this to know if it's online
+  export let isOnlineGame: boolean = false;
 
   const dispatch = createEventDispatcher();
 
@@ -106,6 +106,12 @@
                 selected={isCardSelected(card)}
                 on:cardSelect={handleCardSelect}
         />
+        <!-- Debug overlay -->
+        {#if i < 3}
+          <div class="absolute -bottom-6 left-0 text-xs text-white bg-black bg-opacity-50 px-1 rounded">
+            {card.suit} {card.rank}
+          </div>
+        {/if}
       </div>
     {/each}
   </div>

@@ -1,12 +1,20 @@
 <script lang="ts">
   import { onMount, setContext } from 'svelte';
-  import type { Socket } from 'socket.io-client';
 
   // Import components
   import WelcomeScreen from './game/WelcomeScreen.svelte';
   import GameBoard from './game/GameBoard.svelte';
   import Login from './game/Login.svelte';
   import type { CardType, PlayerType, GameState } from '../lib/types.ts';
+
+  // Import socket stores
+  import {
+    gameState,
+    players,
+    inWaitingRoom,
+    isOnlineGame,
+    disconnectSocket
+  } from '../lib/stores/socket';
 
   // Set card dimensions context
   setContext('cardWidth', 50);
@@ -18,12 +26,8 @@
   let showLogin = false;
   let isLoggedIn = false;
 
-  // Socket state
-  let socket: Socket | null = null;
-  let currentRoomId: string = '';
-
-  // Game state
-  let gameState: GameState = {
+  // Local game state (only used for offline games)
+  let localGameState: GameState = {
     gameStarted: false,
     gameOver: false,
     roundNumber: 1,
@@ -39,12 +43,10 @@
     heartsBroken: false
   };
 
-  // Player data
-  let players: PlayerType[] = [];
-  let roundScores: { [playerName: string]: number } = {};
+  let localPlayers: PlayerType[] = [];
+  let localRoundScores: { [playerName: string]: number } = {};
   let humanReadyToPass = false;
   let humanSelectedCards: CardType[] = [];
-  let aiPassingComplete = false;
 
   // Helper function to make authenticated API calls
   function makeAuthenticatedRequest(url: string, options: any = {}) {
@@ -65,12 +67,8 @@
 
   // Initialize LOCAL game
   function initializeLocalGame() {
-    // Reset socket connection for local game
-    socket = null;
-    currentRoomId = '';
-
     // Set up local players
-    players = [
+    localPlayers = [
       { name: 'You', hand: [], score: 0, isHuman: true },
       { name: 'Computer 1', hand: [], score: 0, isHuman: false },
       { name: 'Computer 2', hand: [], score: 0, isHuman: false },
@@ -78,14 +76,14 @@
     ];
 
     // Initialize game state for local game
-    gameState = {
+    localGameState = {
       gameStarted: true,
       gameOver: false,
       roundNumber: 1,
       passingDirection: 'left',
       passingPhase: true,
       currentPlayerIndex: 0,
-      players: players.map(p => p.name),
+      players: localPlayers.map(p => p.name),
       hands: {},
       scores: {},
       roundScores: {},
@@ -95,10 +93,10 @@
     };
 
     // Initialize scores
-    players.forEach(player => {
-      gameState.scores[player.name] = 0;
-      gameState.roundScores[player.name] = 0;
-      roundScores[player.name] = 0;
+    localPlayers.forEach(player => {
+      localGameState.scores[player.name] = 0;
+      localGameState.roundScores[player.name] = 0;
+      localRoundScores[player.name] = 0;
     });
 
     // Deal cards
@@ -128,7 +126,7 @@
     }
 
     // Deal 13 cards to each player
-    players.forEach((player, index) => {
+    localPlayers.forEach((player, index) => {
       player.hand = deck.slice(index * 13, (index + 1) * 13);
 
       // Sort the hands for easier play
@@ -146,26 +144,26 @@
       });
 
       // Update game state hands
-      gameState.hands[player.name] = [...player.hand];
+      localGameState.hands[player.name] = [...player.hand];
     });
 
     // Update reactive reference
-    players = [...players];
+    localPlayers = [...localPlayers];
   }
 
   // Update passing direction based on round
   function updatePassingDirection() {
     const directions = ['left', 'right', 'across', 'none'];
-    gameState.passingDirection = directions[(gameState.roundNumber - 1) % 4];
-    gameState.passingPhase = gameState.passingDirection !== 'none';
+    localGameState.passingDirection = directions[(localGameState.roundNumber - 1) % 4];
+    localGameState.passingPhase = localGameState.passingDirection !== 'none';
   }
 
   // Core card playing logic (LOCAL game only)
   function playCard(player: string, card: CardType) {
-    if (gameState.passingPhase || gameState.gameOver) return false;
+    if (localGameState.passingPhase || localGameState.gameOver) return false;
 
     // Only allow the current player to play
-    const currentPlayer = players[gameState.currentPlayerIndex];
+    const currentPlayer = localPlayers[localGameState.currentPlayerIndex];
     if (player !== currentPlayer.name) return false;
 
     // Find the card in the player's hand
@@ -177,17 +175,17 @@
 
     // Remove card from hand
     currentPlayer.hand.splice(cardIndex, 1);
-    gameState.hands[player] = [...currentPlayer.hand];
-    players = [...players];
+    localGameState.hands[player] = [...currentPlayer.hand];
+    localPlayers = [...localPlayers];
 
     // Add card to current trick
-    gameState.currentTrick = [...gameState.currentTrick, { player, card }];
+    localGameState.currentTrick = [...localGameState.currentTrick, { player, card }];
 
     // Move to next player
-    gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % 4;
+    localGameState.currentPlayerIndex = (localGameState.currentPlayerIndex + 1) % 4;
 
     // Check if trick is complete
-    if (gameState.currentTrick.length === 4) {
+    if (localGameState.currentTrick.length === 4) {
       completeTrick();
     }
 
@@ -198,10 +196,10 @@
   function completeTrick() {
     setTimeout(() => {
       // Simple trick winner logic - highest card of led suit wins
-      const ledSuit = gameState.currentTrick[0].card.suit;
-      let winner = gameState.currentTrick[0];
+      const ledSuit = localGameState.currentTrick[0].card.suit;
+      let winner = localGameState.currentTrick[0];
 
-      gameState.currentTrick.forEach(play => {
+      localGameState.currentTrick.forEach(play => {
         if (play.card.suit === ledSuit) {
           const currentRank = typeof winner.card.rank === 'number' ? winner.card.rank :
                   winner.card.rank === 'J' ? 11 : winner.card.rank === 'Q' ? 12 :
@@ -216,15 +214,15 @@
         }
       });
 
-      gameState.trickWinner = winner.player;
+      localGameState.trickWinner = winner.player;
 
       setTimeout(() => {
-        gameState.currentTrick = [];
-        gameState.trickWinner = null;
-        gameState.currentPlayerIndex = players.findIndex(p => p.name === winner.player);
+        localGameState.currentTrick = [];
+        localGameState.trickWinner = null;
+        localGameState.currentPlayerIndex = localPlayers.findIndex(p => p.name === winner.player);
 
         // Check if round is over
-        if (players.every(player => player.hand.length === 0)) {
+        if (localPlayers.every(player => player.hand.length === 0)) {
           endRound();
         }
       }, 2000);
@@ -235,25 +233,25 @@
   function endRound() {
     // Calculate scores for the round
     // This is simplified - in real Hearts, you'd count hearts and Queen of Spades
-    players.forEach(player => {
+    localPlayers.forEach(player => {
       const points = Math.floor(Math.random() * 26); // Random for now
-      roundScores[player.name] = points;
-      gameState.roundScores[player.name] = points;
+      localRoundScores[player.name] = points;
+      localGameState.roundScores[player.name] = points;
       player.score += points;
-      gameState.scores[player.name] = player.score;
+      localGameState.scores[player.name] = player.score;
     });
 
-    players = [...players];
+    localPlayers = [...localPlayers];
 
     // Check if game should end
-    const maxScore = Math.max(...players.map(p => p.score));
+    const maxScore = Math.max(...localPlayers.map(p => p.score));
     if (maxScore >= 100) {
-      gameState.gameOver = true;
+      localGameState.gameOver = true;
       return;
     }
 
     // Start next round
-    gameState.roundNumber++;
+    localGameState.roundNumber++;
     setTimeout(() => {
       startNewRound();
     }, 3000);
@@ -261,15 +259,15 @@
 
   // Start new round (LOCAL game only)
   function startNewRound() {
-    gameState.currentTrick = [];
-    gameState.trickWinner = null;
-    gameState.currentPlayerIndex = 0;
-    gameState.heartsBroken = false;
+    localGameState.currentTrick = [];
+    localGameState.trickWinner = null;
+    localGameState.currentPlayerIndex = 0;
+    localGameState.heartsBroken = false;
 
     // Reset round scores
-    players.forEach(player => {
-      roundScores[player.name] = 0;
-      gameState.roundScores[player.name] = 0;
+    localPlayers.forEach(player => {
+      localRoundScores[player.name] = 0;
+      localGameState.roundScores[player.name] = 0;
     });
 
     // Deal new cards
@@ -279,34 +277,6 @@
     // Reset passing state
     humanReadyToPass = false;
     humanSelectedCards = [];
-    aiPassingComplete = false;
-  }
-
-  // Handle ONLINE game joined
-  function handleJoinedOnlineGame(event) {
-    const { gameState: serverGameState, roomId, socket: gameSocket } = event.detail;
-
-    // Store socket and room ID
-    socket = gameSocket;
-    currentRoomId = roomId;
-
-    // Update game state from server
-    gameState = { ...serverGameState };
-
-    // Update players from server state
-    if (serverGameState.players && serverGameState.hands) {
-      players = serverGameState.players.map((playerName, index) => ({
-        name: playerName,
-        hand: serverGameState.hands[playerName] || [],
-        score: serverGameState.scores[playerName] || 0,
-        isHuman: true // In online games, treat all as human (server manages AI)
-      }));
-
-      // Initialize round scores
-      players.forEach(player => {
-        roundScores[player.name] = serverGameState.roundScores[player.name] || 0;
-      });
-    }
   }
 
   // Event handlers
@@ -317,17 +287,9 @@
   function handlePlayCard(event) {
     const { player, card } = event.detail;
 
-    if (socket?.connected && currentRoomId) {
-      // Online game - emit to server
-      socket.emit('play_card', {
-        roomId: currentRoomId,
-        player,
-        card
-      }, (response) => {
-        if (!response.success) {
-          console.error('Failed to play card:', response.error);
-        }
-      });
+    if ($isOnlineGame) {
+      // Online game handled by socket store
+      console.log('Online play card handled by socket store');
     } else {
       // Local game - handle locally
       playCard(player, card);
@@ -337,23 +299,15 @@
   function handlePassCards() {
     if (!humanReadyToPass) return;
 
-    if (socket?.connected && currentRoomId) {
-      // Online game - emit to server
-      socket.emit('pass_cards', {
-        roomId: currentRoomId,
-        cards: humanSelectedCards
-      }, (response) => {
-        if (!response.success) {
-          console.error('Failed to pass cards:', response.error);
-        }
-      });
+    if ($isOnlineGame) {
+      // Online game handled by socket store
+      console.log('Online pass cards handled by socket store');
     } else {
       // Local game - handle locally
-      // TODO: Implement local passing logic
-      gameState.passingPhase = false;
+      localGameState.passingPhase = false;
       humanReadyToPass = false;
       humanSelectedCards = [];
-      gameState = { ...gameState };
+      localGameState = { ...localGameState };
     }
   }
 
@@ -363,17 +317,10 @@
     humanSelectedCards = selectedCards;
   }
 
-  function handleAIPassingSelection(event) {
-    // Only relevant for local games
-    if (!socket?.connected) {
-      console.log(`${event.detail.player} selected cards for passing:`, event.detail.cards);
-    }
-  }
-
   function handleRestartGame() {
-    if (socket?.connected && currentRoomId) {
-      // Online game - request new game from server
-      socket.emit('restart_game', { roomId: currentRoomId });
+    if ($isOnlineGame) {
+      // Online game handled by socket store
+      console.log('Online restart handled by socket store');
     } else {
       // Local game - restart locally
       initializeLocalGame();
@@ -416,17 +363,8 @@
     authToken = null;
     isLoggedIn = false;
     showLogin = false;
+    disconnectSocket();
     localStorage.removeItem('hearts_token');
-  }
-
-  function handleJoinGame(event) {
-    const { gameCode } = event.detail;
-    console.log(`Joining game with code: ${gameCode}`);
-  }
-
-  function handleCreateGame(event) {
-    const { gameId } = event.detail;
-    console.log(`Creating game with ID: ${gameId}`);
   }
 
   // Check existing auth on mount
@@ -463,11 +401,14 @@
     checkExistingAuth();
   });
 
-  // Reactive statement for scores
-  $: scores = players.reduce((acc, player) => {
-    acc[player.name] = player.score;
-    return acc;
-  }, {});
+  // Determine which game state and players to use
+  $: currentGameState = $isOnlineGame ? $gameState : localGameState;
+  $: currentPlayers = $isOnlineGame ? $players : localPlayers;
+  $: currentRoundScores = $isOnlineGame ?
+          (currentGameState?.roundScores || {}) :
+          localRoundScores;
+  $: isGameStarted = currentGameState?.gameStarted || false;
+  $: showWaitingRoom = $inWaitingRoom;
 </script>
 
 <!-- Main container -->
@@ -478,22 +419,28 @@
             on:accountCreated={handleAccountCreated}
             on:playAsGuest={handlePlayAsGuest}
     />
-  {:else if gameState.gameStarted}
+  {:else if showWaitingRoom}
+    <!-- WaitingRoom will be shown through WelcomeScreen -->
+    <WelcomeScreen
+            {currentUser}
+            {authToken}
+            {isLoggedIn}
+            on:startGame={handleStartGame}
+            on:showLogin={handleShowLogin}
+            on:logout={handleLogout}
+    />
+  {:else if isGameStarted}
     <GameBoard
-            {gameState}
-            {players}
-            {roundScores}
+            gameState={currentGameState}
+            players={currentPlayers}
+            roundScores={currentRoundScores}
             {humanReadyToPass}
             {humanSelectedCards}
-            {aiPassingComplete}
-            {socket}
-            {currentRoomId}
             on:startGame={handleStartGame}
             on:restartGame={handleRestartGame}
             on:passDone={handlePassCards}
             on:playCard={handlePlayCard}
             on:humanPassingSelection={handleHumanPassingSelection}
-            on:aiPassingSelection={handleAIPassingSelection}
     />
   {:else}
     <WelcomeScreen
@@ -501,9 +448,6 @@
             {authToken}
             {isLoggedIn}
             on:startGame={handleStartGame}
-            on:createGame={handleCreateGame}
-            on:joinGame={handleJoinGame}
-            on:joinedOnlineGame={handleJoinedOnlineGame}
             on:showLogin={handleShowLogin}
             on:logout={handleLogout}
     />

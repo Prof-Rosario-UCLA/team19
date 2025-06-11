@@ -1,10 +1,26 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import { io, type Socket } from 'socket.io-client';
+  import { createEventDispatcher } from 'svelte';
   import Leaderboard from '../game/Leaderboard.svelte';
   import WaitingRoom from './WaitingRoom.svelte';
 
-  export let currentUser: any = null; // Now expects user object
+  // Import socket stores
+  import {
+    socket,
+    connectionStatus,
+    rooms,
+    currentRoomId,
+    currentRoomName,
+    inWaitingRoom,
+    error,
+    selfPlayerName,
+    connectSocket,
+    disconnectSocket,
+    createRoom,
+    joinRoom,
+    getRooms
+  } from '../../lib/stores/socket';
+
+  export let currentUser: any = null;
   export let authToken: string | null = null;
   export let isLoggedIn: boolean = false;
 
@@ -13,22 +29,13 @@
   let gameCode = '';
   let showJoinInput = false;
   let showCreateInput = false;
-  let showGameRules = false; // New state for game rules popup
+  let showGameRules = false;
   let roomName = '';
   let playerName = currentUser?.username || '';
-  let socket: Socket | null = null;
-  let connectionStatus = 'Disconnected';
-  let availableRooms: any[] = [];
   let isConnecting = false;
   let showRoomsList = false;
 
-  // Waiting room state
-  let inWaitingRoom = false;
-  let currentRoomId = '';
-  let currentRoomName = '';
-
-  // Connection and room management
-  let connectionError = '';
+  // Local error states (separate from socket store errors)
   let roomError = '';
 
   // Helper function to make authenticated API calls
@@ -52,70 +59,14 @@
     dispatch('startGame');
   }
 
-  function connectToServer() {
-    if (socket?.connected) return;
-
+  function handleConnect() {
     isConnecting = true;
-    connectionError = '';
-
-    // Check for development mode and set appropriate socket URL
-    const isDevelopment = import.meta.env?.VITE_DEV_MODE === 'true';
-
-    const socketUrl = isDevelopment ? 'http://localhost:3000' : window.location.origin;
-
-    console.log('Environment variables:', import.meta.env);
-    console.log('DEV_MODE value:', import.meta.env?.VITE_DEV_MODE);
-    console.log('Is Development:', isDevelopment);
-    console.log('Socket URL:', socketUrl);
-    console.log('Current origin:', window.location.origin);
-
-    socket = io(socketUrl, {
-      transports: ['websocket', 'polling'], // Explicitly specify transports
-      timeout: 10000, // 10 second timeout
-      forceNew: true // Force a new connection
-    });
-
-    socket.on('connect', () => {
-      connectionStatus = 'Connected';
-      isConnecting = false;
-      console.log('Connected to server at:', socketUrl);
-      getRooms();
-    });
-
-    socket.on('disconnect', () => {
-      connectionStatus = 'Disconnected';
-      isConnecting = false;
-      console.log('Disconnected from server');
-    });
-
-    socket.on('connect_error', (error) => {
-      connectionStatus = 'Connection Failed';
-      isConnecting = false;
-      const serverUrl = isDevelopment ? 'localhost:3000' : 'the server';
-      connectionError = `Could not connect to server. Make sure the server is running on ${serverUrl}`;
-      console.error('Connection error:', error);
-    });
-
-    socket.on('rooms_updated', (rooms) => {
-      console.log('Rooms updated:', rooms);
-      availableRooms = rooms;
-    });
-
-    socket.on('game_state_updated', (data) => {
-      console.log('Game state updated:', data);
-      dispatch('joinedOnlineGame', {
-        gameState: data.gameState,
-        roomId: gameCode
-      });
-    });
+    roomError = '';
+    connectSocket();
   }
 
-  function disconnectFromServer() {
-    if (socket) {
-      socket.disconnect();
-      socket = null;
-      availableRooms = [];
-    }
+  function handleDisconnect() {
+    disconnectSocket();
   }
 
   async function createOnlineRoom() {
@@ -139,23 +90,18 @@
         if (data.success) {
           console.log('Room created via REST API:', data.data);
           gameCode = data.data.room_code;
-          currentRoomName = roomName.trim();
 
           // Now tell socket to set up the existing room
-          if (socket?.connected) {
-            socket.emit('create_room', {
-              name: roomName.trim(),
-              hostUser: {
-                user_id: currentUser.user_id,
-                username: currentUser.username
-              },
-              existingRoomCode: data.data.room_code  // Pass the existing room code
+          if ($socket?.connected) {
+            createRoom(roomName.trim(), {
+              user_id: currentUser.user_id,
+              username: currentUser.username
             }, (response) => {
               if (response.success) {
                 console.log('Socket room setup complete for existing room');
+                gameCode = response.roomId;
                 joinOnlineRoom();
               } else {
-                console.error('Failed to setup socket room:', response.error);
                 roomError = `Socket setup failed: ${response.error}`;
               }
             });
@@ -170,28 +116,27 @@
         roomError = 'Failed to create room. Please try again.';
       }
     } else {
-      // Guest user - socket only (this should work)
-      if (!socket?.connected) {
+      // Guest user - socket only
+      if (!$socket?.connected) {
         roomError = 'Not connected to server';
         return;
       }
 
-      socket.emit('create_room', { name: roomName.trim() }, (response) => {
+      createRoom(roomName.trim(), undefined, (response) => {
+        console.log('Room created successfully:', response);
         if (response.success) {
-          console.log(`Room created successfully. Room ID: ${response.roomId}`);
           gameCode = response.roomId;
-          currentRoomName = roomName.trim();
+          // Auto-join the room we just created
           joinOnlineRoom();
         } else {
           roomError = `Failed to create room: ${response.error}`;
-          console.error('Failed to create room:', response.error);
         }
       });
     }
   }
 
   function joinOnlineRoom() {
-    if (!socket?.connected) {
+    if (!$socket?.connected) {
       roomError = 'Not connected to server';
       return;
     }
@@ -213,25 +158,16 @@
     console.log('Joining room:', roomIdToJoin, 'as:', playerNameToUse);
 
     // Pass user info if logged in
-    const joinData = {
-      roomId: roomIdToJoin,
-      playerName: playerNameToUse,
-      ...(isLoggedIn && currentUser ? {
-        user: {
-          user_id: currentUser.user_id,
-          username: currentUser.username
-        }
-      } : {})
-    };
+    const user = isLoggedIn && currentUser ? {
+      user_id: currentUser.user_id,
+      username: currentUser.username
+    } : undefined;
 
-    socket.emit('join_room', joinData, (response) => {
-      console.log('Join room response:', response);
-
+    joinRoom(roomIdToJoin, playerNameToUse, user, (response) => {
+      console.log('Join room callback response:', response);
       if (response && response.success) {
         console.log(`✅ Joined room ${roomIdToJoin} successfully`);
-        currentRoomId = roomIdToJoin;
-        currentRoomName = roomName || `Room ${roomIdToJoin}`;
-        inWaitingRoom = true;
+        // Room name will be set by the store
       } else {
         const errorMsg = response ? response.error : 'No response from server';
         roomError = `Failed to join room: ${errorMsg}`;
@@ -240,13 +176,10 @@
     });
   }
 
-  function getRooms() {
-    if (!socket?.connected) return;
-
-    socket.emit('get_rooms', (rooms) => {
-      console.log('Retrieved rooms:', rooms);
-      availableRooms = rooms;
-    });
+  function handleGetRooms() {
+    if ($socket?.connected) {
+      getRooms();
+    }
   }
 
   function directJoinRoom(room: any) {
@@ -256,36 +189,11 @@
     }
 
     gameCode = room.id;
-    currentRoomName = room.name;
     joinOnlineRoom();
-  }
-
-  // Waiting room event handlers
-  function handleLeaveRoom() {
-    inWaitingRoom = false;
-    currentRoomId = '';
-    currentRoomName = '';
-    gameCode = '';
-  }
-
-  function handleGameReady(event) {
-    console.log('Game is ready to start:', event.detail);
-  }
-
-  function handleGameStarted(event) {
-    console.log('Game started:', event.detail);
-
-    // Pass socket instance along with game state
-    dispatch('joinedOnlineGame', {
-      gameState: event.detail.gameState,
-      roomId: event.detail.roomId,
-      socket: socket // Add this line to pass socket instance
-    });
   }
 
   function joinRoomFromList(room: any) {
     gameCode = room.id;
-    currentRoomName = room.name;
     if (!playerName.trim()) {
       playerName = currentUser?.username || `Player${Math.floor(Math.random() * 1000)}`;
     }
@@ -314,8 +222,8 @@
 
   function toggleRoomsList() {
     showRoomsList = !showRoomsList;
-    if (showRoomsList && socket?.connected) {
-      getRooms();
+    if (showRoomsList && $socket?.connected) {
+      handleGetRooms();
     }
   }
 
@@ -331,7 +239,7 @@
         createOnlineRoom();
       }
     }
-    
+
     // Close game rules popup with Escape key
     if (event.key === 'Escape' && showGameRules) {
       showGameRules = false;
@@ -339,7 +247,7 @@
   }
 
   function logout() {
-    disconnectFromServer();
+    handleDisconnect();
     dispatch('logout');
   }
 
@@ -348,13 +256,13 @@
     playerName = currentUser.username;
   }
 
-  onMount(() => {
-    // Auto-connect if user wants to play online
-  });
+  // Update connecting state based on store
+  $: isConnecting = $connectionStatus === 'connecting';
 
-  onDestroy(() => {
-    disconnectFromServer();
-  });
+  // Update selfPlayerName in store when playerName changes
+  $: if (playerName) {
+    selfPlayerName.set(playerName);
+  }
 
   // Game rules data
   const gameRules = {
@@ -374,19 +282,12 @@
 </script>
 
 <div class="min-h-screen relative overflow-hidden">
-  {#if inWaitingRoom}
+  {#if $inWaitingRoom}
     <!-- Waiting Room Component -->
     <WaitingRoom
-            {socket}
-            roomId={currentRoomId}
-            roomName={currentRoomName}
-            {playerName}
             {currentUser}
             {authToken}
             {isLoggedIn}
-            on:leaveRoom={handleLeaveRoom}
-            on:gameReady={handleGameReady}
-            on:gameStarted={handleGameStarted}
     />
   {:else}
     <!-- Regular Welcome Screen Content -->
@@ -417,11 +318,11 @@
     <!-- Connection Status (top center) -->
     <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
       <div class="bg-black bg-opacity-40 rounded-lg p-2 text-white text-sm flex items-center gap-2">
-        <div class="w-2 h-2 rounded-full {connectionStatus === 'Connected' ? 'bg-green-500' : 'bg-red-500'}"></div>
-        <span>{connectionStatus}</span>
-        {#if !socket?.connected && !isConnecting}
+        <div class="w-2 h-2 rounded-full {$connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}"></div>
+        <span>{$connectionStatus.charAt(0).toUpperCase() + $connectionStatus.slice(1)}</span>
+        {#if !$socket?.connected && !isConnecting}
           <button
-                  on:click={connectToServer}
+                  on:click={handleConnect}
                   class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
           >
             Connect
@@ -444,9 +345,9 @@
           </div>
 
           <!-- Error Messages -->
-          {#if connectionError}
+          {#if $error}
             <div class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-              {connectionError}
+              {$error}
             </div>
           {/if}
 
@@ -494,12 +395,10 @@
                 <button
                         class="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                         on:click={toggleCreateInput}
-                        disabled={!socket?.connected}
+                        disabled={!$socket?.connected}
                 >
                   🌐 Create Online Room
-                  {#if isLoggedIn}
-                    <span class="text-sm font-normal">(Connect first)</span>
-                  {:else if !socket?.connected}
+                  {#if !$socket?.connected}
                     <span class="text-sm font-normal">(Connect first)</span>
                   {/if}
                 </button>
@@ -536,10 +435,10 @@
                 <button
                         class="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                         on:click={toggleJoinInput}
-                        disabled={!socket?.connected}
+                        disabled={!$socket?.connected}
                 >
                   🔗 Join Online Room
-                  {#if !socket?.connected}
+                  {#if !$socket?.connected}
                     <span class="text-sm font-normal">(Connect first)</span>
                   {/if}
                 </button>
@@ -563,7 +462,7 @@
                       </div>
                       <button
                               on:click={joinOnlineRoom}
-                              disabled={!gameCode.trim() || !playerName.trim() || !socket?.connected}
+                              disabled={!gameCode.trim() || !playerName.trim() || !$socket?.connected}
                               class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
                       >
                         Join Room
@@ -573,12 +472,12 @@
                 {/if}
 
                 <!-- Browse Available Rooms -->
-                {#if socket?.connected}
+                {#if $socket?.connected}
                   <button
                           class="w-full px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                           on:click={toggleRoomsList}
                   >
-                    🏠 Browse Available Rooms ({availableRooms.length})
+                    🏠 Browse Available Rooms ({$rooms.length})
                   </button>
 
                   {#if showRoomsList}
@@ -586,18 +485,18 @@
                       <div class="flex justify-between items-center mb-3">
                         <h4 class="font-medium text-gray-700">Available Rooms:</h4>
                         <button
-                                on:click={getRooms}
+                                on:click={handleGetRooms}
                                 class="text-sm bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded"
                         >
                           Refresh
                         </button>
                       </div>
 
-                      {#if availableRooms.length === 0}
+                      {#if $rooms.length === 0}
                         <p class="text-gray-500 text-center py-4">No rooms available. Create one!</p>
                       {:else}
                         <div class="space-y-2 max-h-40 overflow-y-auto">
-                          {#each availableRooms as room}
+                          {#each $rooms as room}
                             <div class="flex justify-between items-center p-3 bg-white rounded-lg border">
                               <div>
                                 <div class="font-medium text-gray-800">{room.name}</div>
@@ -646,7 +545,7 @@
             >
               📖 Game Rules
             </button>
-            
+
             <div class="text-xs text-gray-500">
               <p>Local games work offline • Online games connect you with other players</p>
               {#if !currentUser}
@@ -663,7 +562,7 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Mobile Leaderboard (below main card on smaller screens) -->
         <div class="min-[800px]:hidden max-[419px]:hidden w-full max-w-md mx-auto">
           <Leaderboard {currentUser} {authToken} />

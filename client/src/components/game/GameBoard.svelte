@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, setContext, createEventDispatcher } from 'svelte';
-  import type { Socket } from 'socket.io-client';
+  import { createEventDispatcher } from 'svelte';
 
   // Import components
   import Card from '../cards/Card.svelte';
@@ -10,170 +9,143 @@
   import HumanPlayer from '../players/HumanPlayer.svelte';
   import type { CardType, PlayerType, GameState } from '../../lib/types.ts';
 
-  // Set card dimensions context
-  setContext('cardWidth', 50);
-  setContext('cardHeight', 70);
+  // Import socket stores
+  import {
+    socket,
+    gameState as storeGameState,
+    players as storePlayers,
+    isOnlineGame,
+    playCard as socketPlayCard,
+    passCards as socketPassCards,
+    restartGame as socketRestartGame
+  } from '../../lib/stores/socket';
 
-  // Props
-  export let gameState: GameState;
-  export let players: PlayerType[];
-  export let roundScores: { [playerName: string]: number };
-  export let humanReadyToPass: boolean;
-  export let humanSelectedCards: CardType[];
-  export let aiPassingComplete: boolean;
-  export let socket: Socket | null = null;
-  export let currentRoomId: string = '';
+  // Props (for local games or fallback)
+  export let gameState: GameState | null = null;
+  export let players: PlayerType[] = [];
+  export let roundScores: { [playerName: string]: number } = {};
+  export let humanReadyToPass: boolean = false;
+  export let humanSelectedCards: CardType[] = [];
 
   // Event dispatcher
   const dispatch = createEventDispatcher();
 
-  // Determine if this is an online game
-  $: isOnlineGame = socket !== null && socket?.connected && currentRoomId !== '';
-
-  // Socket event listeners (for online games)
-  onMount(() => {
-    if (socket && isOnlineGame) {
-      socket.on('game_state_updated', handleGameStateUpdate);
-      socket.on('cards_dealt', handleCardsDealt);
-      socket.on('card_played', handleCardPlayed);
-      socket.on('trick_completed', handleTrickCompleted);
-      socket.on('round_ended', handleRoundEnded);
-      socket.on('cards_passed', handleCardsPassed);
-      socket.on('game_over', handleGameOver);
-    }
-  });
-
-  onDestroy(() => {
-    if (socket) {
-      socket.off('game_state_updated');
-      socket.off('cards_dealt');
-      socket.off('card_played');
-      socket.off('trick_completed');
-      socket.off('round_ended');
-      socket.off('cards_passed');
-      socket.off('game_over');
-    }
-  });
-
-  // Socket event handlers
-  function handleGameStateUpdate(data: any) {
-    gameState = { ...data.gameState };
-
-    // Update players' hands
-    if (data.gameState.hands) {
-      players = players.map(player => ({
-        ...player,
-        hand: data.gameState.hands[player.name] || [],
-        score: data.gameState.scores[player.name] || 0
-      }));
-    }
-
-    // Update round scores
-    if (data.gameState.roundScores) {
-      roundScores = { ...data.gameState.roundScores };
-    }
-  }
-
-  function handleCardsDealt(data: any) {
-    // Update hands from server
-    if (data.hands) {
-      players = players.map(player => ({
-        ...player,
-        hand: data.hands[player.name] || []
-      }));
-    }
-  }
-
-  function handleCardPlayed(data: any) {
-    // Server already updated the game state
-    // Just ensure UI is in sync
-    gameState.currentTrick = [...data.currentTrick];
-    gameState.currentPlayerIndex = data.currentPlayerIndex;
-  }
-
-  function handleTrickCompleted(data: any) {
-    gameState.trickWinner = data.winner;
-
-    setTimeout(() => {
-      gameState.trickWinner = null;
-      gameState.currentTrick = [];
-      gameState.currentPlayerIndex = data.nextPlayerIndex;
-      gameState = { ...gameState };
-    }, 2000);
-  }
-
-  function handleRoundEnded(data: any) {
-    // Update scores from server
-    if (data.scores) {
-      players = players.map(player => ({
-        ...player,
-        score: data.scores[player.name] || player.score
-      }));
-    }
-
-    if (data.roundScores) {
-      roundScores = { ...data.roundScores };
-      gameState.roundScores = { ...data.roundScores };
-    }
-
-    gameState.scores = { ...data.scores };
-
-    // Move to next round or end game
-    if (data.gameOver) {
-      gameState.gameOver = true;
-    } else {
-      gameState.roundNumber = data.nextRound;
-    }
-  }
-
-  function handleCardsPassed(data: any) {
-    // Update hands after passing
-    if (data.hands) {
-      players = players.map(player => ({
-        ...player,
-        hand: data.hands[player.name] || []
-      }));
-    }
-
-    gameState.passingPhase = false;
-    gameState = { ...gameState };
-  }
-
-  function handleGameOver(data: any) {
-    gameState.gameOver = true;
-    // Update final scores
-    if (data.finalScores) {
-      players = players.map(player => ({
-        ...player,
-        score: data.finalScores[player.name] || player.score
-      }));
-    }
-  }
+  // Use store data for online games, props for local games
+  $: currentGameState = $isOnlineGame ? $storeGameState : gameState;
+  $: currentPlayers = $isOnlineGame ? $storePlayers : players;
+  $: currentRoundScores = $isOnlineGame ?
+          (currentGameState?.roundScores || {}) :
+          roundScores;
 
   // Local event handlers
   function handlePlayCard(event) {
-    dispatch('playCard', event.detail);
+    const { player, card } = event.detail;
+
+    if ($isOnlineGame) {
+      // Use socket store for online games
+      socketPlayCard(card, (response) => {
+        if (!response.success) {
+          console.error('Failed to play card:', response.error);
+        }
+      });
+    } else {
+      // Pass to parent for local games
+      dispatch('playCard', event.detail);
+    }
   }
 
   function handleHumanPassingSelection(event) {
+    // Always pass to parent - this is UI state
     dispatch('humanPassingSelection', event.detail);
   }
 
   function handleAIPassingSelection(event) {
-    dispatch('aiPassingSelection', event.detail);
+    // Only relevant for local games
+    if (!$isOnlineGame) {
+      dispatch('aiPassingSelection', event.detail);
+    }
   }
 
   function handlePassDone() {
-    dispatch('passDone');
+    if ($isOnlineGame) {
+      // Use socket store for online games
+      socketPassCards(humanSelectedCards, (response) => {
+        if (!response.success) {
+          console.error('Failed to pass cards:', response.error);
+        }
+      });
+    } else {
+      // Pass to parent for local games
+      dispatch('passDone');
+    }
+  }
+
+  function handleRestartGame() {
+    if ($isOnlineGame) {
+      // Use socket store for online games
+      socketRestartGame((response) => {
+        if (!response.success) {
+          console.error('Failed to restart game:', response.error);
+        }
+      });
+    } else {
+      // Pass to parent for local games
+      dispatch('restartGame');
+    }
   }
 
   // Computed values
-  $: scores = players.reduce((acc, player) => {
-    acc[player.name] = player.score;
+  $: scores = currentPlayers.reduce((acc, player) => {
+    acc[player.name] = player.score || 0;
     return acc;
   }, {});
 
-  $: passingDirection = gameState.passingDirection;
+  $: passingDirection = currentGameState?.passingDirection || 'left';
+  $: isGameStarted = currentGameState?.gameStarted || false;
+  $: isGameOver = currentGameState?.gameOver || false;
+  $: isPassingPhase = currentGameState?.passingPhase || false;
+  $: currentPlayerIndex = $isOnlineGame ?
+          (currentGameState?.rotatedCurrentPlayerIndex ?? 0) :
+          (currentGameState?.currentPlayerIndex ?? 0);
+  $: currentTrick = currentGameState?.currentTrick || [];
+  $: trickWinner = currentGameState?.trickWinner;
+  $: roundNumber = currentGameState?.roundNumber || 1;
+
+  // Ensure we have 4 players for display with proper card counts
+  $: displayPlayers = Array.from({ length: 4 }, (_, i) => {
+    if (currentPlayers[i]) {
+      const player = currentPlayers[i];
+      return {
+        ...player,
+        // For online games, other players should show face-down cards based on count
+        hand: $isOnlineGame && i !== 0 ?
+                // Generate dummy cards for display (face-down)
+                Array.from({ length: getPlayerCardCount(i) }, () => ({ suit: 'spades', rank: 2 })) :
+                player.hand
+      };
+    }
+    return {
+      name: `Player ${i + 1}`,
+      hand: [],
+      score: 0,
+      isHuman: false
+    };
+  });
+
+  // Get card count for a player from game state
+  function getPlayerCardCount(playerIndex: number): number {
+    if (!$isOnlineGame || !currentGameState) return 0;
+
+    // Check if we have player card count data from server
+    const serverPlayers = currentGameState.players;
+    if (serverPlayers && serverPlayers[playerIndex]) {
+      return serverPlayers[playerIndex].cardCount || 13; // Default to 13 if not specified
+    }
+
+    // Fallback: estimate based on tricks played
+    const tricksPlayed = currentGameState.tricksPlayed || 0;
+    return 13 - tricksPlayed;
+  }
 </script>
 
 <!-- Game Board Container -->
@@ -186,15 +158,15 @@
     </div>
 
     <!-- Players -->
-    <!-- South Player (You - always human) -->
+    <!-- South Player (You - always human in display) -->
     <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
       <HumanPlayer
-              playerName={players[0]?.name || 'You'}
-              cards={players[0]?.hand || []}
-              isActive={gameState.currentPlayerIndex === 0}
-              score={players[0]?.score || 0}
-              passingPhase={gameState.passingPhase}
-              isOnlineGame={isOnlineGame}
+              playerName={displayPlayers[0]?.name || 'You'}
+              cards={displayPlayers[0]?.hand || []}
+              isActive={currentPlayerIndex === 0}
+              score={displayPlayers[0]?.score || 0}
+              passingPhase={isPassingPhase}
+              isOnlineGame={$isOnlineGame}
               on:playCard={handlePlayCard}
               on:readyToPassChanged={handleHumanPassingSelection}
       />
@@ -203,14 +175,14 @@
     <!-- North Player -->
     <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
       <AIPlayer
-              playerName={players[2]?.name || 'North'}
-              cards={players[2]?.hand || []}
-              isActive={gameState.currentPlayerIndex === 2}
-              score={players[2]?.score || 0}
+              playerName={displayPlayers[2]?.name || 'North'}
+              cards={displayPlayers[2]?.hand || []}
+              isActive={currentPlayerIndex === 2}
+              score={displayPlayers[2]?.score || 0}
               position="north"
-              passingPhase={gameState.passingPhase}
-              isOnlineGame={isOnlineGame}
-              isRealPlayer={isOnlineGame}
+              passingPhase={isPassingPhase}
+              isOnlineGame={$isOnlineGame}
+              isRealPlayer={$isOnlineGame}
               on:playCard={handlePlayCard}
               on:cardsSelectedForPassing={handleAIPassingSelection}
       />
@@ -219,14 +191,14 @@
     <!-- West Player -->
     <div class="absolute left-8 top-1/2 transform -translate-y-1/2 z-30">
       <AIPlayer
-              playerName={players[1]?.name || 'West'}
-              cards={players[1]?.hand || []}
-              isActive={gameState.currentPlayerIndex === 1}
-              score={players[1]?.score || 0}
+              playerName={displayPlayers[1]?.name || 'West'}
+              cards={displayPlayers[1]?.hand || []}
+              isActive={currentPlayerIndex === 1}
+              score={displayPlayers[1]?.score || 0}
               position="west"
-              passingPhase={gameState.passingPhase}
-              isOnlineGame={isOnlineGame}
-              isRealPlayer={isOnlineGame}
+              passingPhase={isPassingPhase}
+              isOnlineGame={$isOnlineGame}
+              isRealPlayer={$isOnlineGame}
               on:playCard={handlePlayCard}
               on:cardsSelectedForPassing={handleAIPassingSelection}
       />
@@ -235,14 +207,14 @@
     <!-- East Player -->
     <div class="absolute right-8 top-1/2 transform -translate-y-1/2 z-30">
       <AIPlayer
-              playerName={players[3]?.name || 'East'}
-              cards={players[3]?.hand || []}
-              isActive={gameState.currentPlayerIndex === 3}
-              score={players[3]?.score || 0}
+              playerName={displayPlayers[3]?.name || 'East'}
+              cards={displayPlayers[3]?.hand || []}
+              isActive={currentPlayerIndex === 3}
+              score={displayPlayers[3]?.score || 0}
               position="east"
-              passingPhase={gameState.passingPhase}
-              isOnlineGame={isOnlineGame}
-              isRealPlayer={isOnlineGame}
+              passingPhase={isPassingPhase}
+              isOnlineGame={$isOnlineGame}
+              isRealPlayer={$isOnlineGame}
               on:playCard={handlePlayCard}
               on:cardsSelectedForPassing={handleAIPassingSelection}
       />
@@ -250,18 +222,21 @@
 
     <!-- Center Card Area -->
     <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
-      {#if gameState.currentTrick.length === 0}
+      {#if currentTrick.length === 0}
         <div class="text-green-200 text-opacity-60 text-center font-medium">
           <div class="text-lg">♠ ♥ ♦ ♣</div>
           <div class="text-sm mt-1">Cards played will appear here</div>
-          {#if isOnlineGame}
+          {#if $isOnlineGame}
             <div class="text-xs mt-1 text-blue-300">Online Game</div>
           {/if}
         </div>
       {:else}
         <div class="relative w-64 h-64">
-          {#each gameState.currentTrick as { player, card }, index}
-            {@const playerIndex = players.findIndex(p => p.name === player)}
+          {#each currentTrick as trickCard, index}
+            {@const playerIndex = Array.isArray(trickCard) ?
+                    displayPlayers.findIndex(p => p.name === trickCard.player) :
+                    index}
+            {@const card = Array.isArray(trickCard) ? trickCard.card : trickCard}
             {@const position = playerIndex === 0 ? 'bottom' :
                     playerIndex === 1 ? 'left' :
                             playerIndex === 2 ? 'top' : 'right'}
@@ -274,8 +249,8 @@
 
             <div class="absolute {positionStyles[position]}">
               <Card
-                      suit={card.suit}
-                      rank={card.rank}
+                      suit={card.suit ? card.suit.toLowerCase() : 'spades'}
+                      rank={card.rank || '2'}
                       faceUp={true}
               />
             </div>
@@ -283,11 +258,11 @@
         </div>
       {/if}
 
-      {#if gameState.trickWinner}
+      {#if trickWinner}
         <div class="absolute -bottom-12 left-1/2 transform -translate-x-1/2
                     bg-black bg-opacity-70 text-white px-4 py-2 rounded-full text-sm font-medium
                     animate-pulse">
-          {gameState.trickWinner} wins trick
+          {trickWinner} wins trick
         </div>
       {/if}
     </div>
@@ -300,16 +275,16 @@
         <!-- Controls -->
         <div class="order-2 lg:order-1">
           <Controls
-                  gameStarted={gameState.gameStarted}
-                  gameOver={gameState.gameOver}
-                  passingPhase={gameState.passingPhase}
-                  waitingForPlay={gameState.currentPlayerIndex !== 0 && !gameState.passingPhase}
+                  gameStarted={isGameStarted}
+                  gameOver={isGameOver}
+                  passingPhase={isPassingPhase}
+                  waitingForPlay={currentPlayerIndex !== 0 && !isPassingPhase}
                   on:startGame={() => dispatch('startGame')}
-                  on:restartGame={() => dispatch('restartGame')}
+                  on:restartGame={handleRestartGame}
                   on:passDone={handlePassDone}
           />
 
-          {#if gameState.passingPhase}
+          {#if isPassingPhase}
             <div class="mt-2 text-center">
               <p class="text-green-200 text-sm mb-2">
                 Select 3 cards to pass {passingDirection}
@@ -332,27 +307,27 @@
             <div class="mb-3">
               <h1 class="text-xl font-bold text-white mb-1">♠ Hearts ♥</h1>
               <div class="text-green-200 text-xs flex items-center justify-center gap-2">
-                <span>Round {gameState.roundNumber}</span>
+                <span>Round {roundNumber}</span>
                 <span class="w-1 h-1 bg-green-400 rounded-full"></span>
-                {#if isOnlineGame}
+                {#if $isOnlineGame}
                   <span class="text-blue-300">Online</span>
                   <span class="w-1 h-1 bg-green-400 rounded-full"></span>
                 {/if}
-                {#if gameState.passingPhase}
+                {#if isPassingPhase}
                   <span class="text-yellow-300">Pass {passingDirection}</span>
-                {:else if players[gameState.currentPlayerIndex]}
-                  <span class="text-white font-medium">{players[gameState.currentPlayerIndex].name}'s Turn</span>
+                {:else if displayPlayers[currentPlayerIndex]}
+                  <span class="text-white font-medium">{displayPlayers[currentPlayerIndex].name}'s Turn</span>
                 {/if}
               </div>
             </div>
 
             <div class="text-white text-sm space-y-1 border-t border-white border-opacity-20 pt-2">
-              {#if gameState.passingPhase}
+              {#if isPassingPhase}
                 <div class="text-yellow-300 font-medium">Passing Phase</div>
                 <div class="text-green-200">Choose 3 cards to pass {passingDirection}</div>
-              {:else if gameState.currentPlayerIndex !== 0}
+              {:else if currentPlayerIndex !== 0}
                 <div class="text-blue-300 font-medium">Waiting...</div>
-                <div class="text-green-200">{players[gameState.currentPlayerIndex]?.name || 'Player'} is playing</div>
+                <div class="text-green-200">{displayPlayers[currentPlayerIndex]?.name || 'Player'} is playing</div>
               {:else}
                 <div class="text-green-300 font-medium">Your Turn</div>
                 <div class="text-green-200">Choose a card to play</div>
@@ -364,9 +339,9 @@
         <!-- Scoreboard -->
         <div class="order-3">
           <ScoreBoard
-                  scores={scores}
-                  roundScores={roundScores}
-                  roundNumber={gameState.roundNumber}
+                  {scores}
+                  roundScores={currentRoundScores}
+                  {roundNumber}
           />
         </div>
       </div>
