@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  export let currentUser: any = null; // Now expects user object
+  export let currentUser: any = null;
   export let authToken: string | null = null;
 
   let leaderboardData: any[] = [];
@@ -44,18 +44,10 @@
           const userEntry = leaderboardData.find(p => p.user_id === currentUser.user_id);
           userRank = userEntry ? userEntry.rank : 0;
         }
-
-        console.log('Leaderboard loaded:', {
-          players: leaderboardData.length,
-          total: totalPlayers,
-          userRank
-        });
       } else {
         error = data.error?.message || 'Failed to load leaderboard';
-        console.error('Leaderboard API error:', data.error);
       }
     } catch (err) {
-      console.error('Error fetching leaderboard:', err);
       error = 'Unable to connect to server';
 
       // Fallback to sample data for demo
@@ -126,7 +118,6 @@
       <div class="text-green-200 text-xs">Top Hearts Players</div>
     </div>
 
-    <!-- Loading State -->
     {#if loading}
       <div class="text-center py-8">
         <div class="text-gray-300">Loading leaderboard...</div>
@@ -134,8 +125,6 @@
           <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
         </div>
       </div>
-
-      <!-- Error State -->
     {:else if error}
       <div class="text-center py-4">
         <div class="text-red-300 text-xs mb-2">{error}</div>
@@ -146,8 +135,6 @@
           Try Again
         </button>
       </div>
-
-      <!-- Leaderboard Data -->
     {:else}
       <!-- Leaderboard Table -->
       <div class="space-y-1 max-h-80 overflow-y-auto">
@@ -209,7 +196,6 @@
 </div>
 
 <style>
-  /* Custom scrollbar for the leaderboard */
   .overflow-y-auto::-webkit-scrollbar {
     width: 4px;
   }

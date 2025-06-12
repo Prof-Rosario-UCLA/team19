@@ -1,22 +1,12 @@
 <script lang="ts">
+  import { isOnlineGame, selfPlayerName } from '../../lib/stores/socket';
+
   export let scores: { [playerName: string]: number } = {};
   export let roundScores: { [playerName: string]: number } = {};
   export let roundNumber: number = 1;
 
-  // Import to check if this is an online game and get self player name
-  import { isOnlineGame, selfPlayerName } from '../../lib/stores/socket';
-
   // Get the current player's name (for highlighting)
   $: myPlayerName = $isOnlineGame ? $selfPlayerName : 'You';
-
-  // Debug logging
-  $: console.log('ScoreBoard debug:', {
-    scores,
-    roundScores,
-    myPlayerName,
-    isOnlineGame: $isOnlineGame,
-    scoreKeys: Object.keys(scores)
-  });
 </script>
 
 <div class="bg-black bg-opacity-40 rounded-lg p-3">

@@ -11,18 +11,13 @@ export function initializeSocketIO(httpServer: HttpServer, options?: any) {
                 : ["http://localhost:5173", "http://localhost:8080"],
             methods: ["GET", "POST"]
         },
-        // Merge any additional options passed in
         ...options
     });
 
-    // Initialize GameManager
     const gameManager = new GameManager();
 
-    // Handle socket connections
     io.on('connection', (socket) => {
         console.log('User connected:', socket.id);
-
-        // Register game-related event handlers
         registerGameHandlers(io, socket, gameManager);
     });
 

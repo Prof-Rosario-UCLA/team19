@@ -3,8 +3,8 @@ import { Card } from '../../types/types.js';
 
 interface GameRoom {
     game: Game;
-    players: Map<string, number>; // socketId -> playerIndex
-    playerNames: Map<number, string>; // playerIndex -> playerName
+    players: Map<string, number>;
+    playerNames: Map<number, string>;
     roomId: string;
     name: string;
 }
@@ -24,7 +24,7 @@ export class GameManager {
         const room: GameRoom = {
             game: new Game([], [], 100),
             players: new Map(),
-            playerNames: new Map(), // Track player names
+            playerNames: new Map(),
             roomId,
             name
         };
@@ -43,16 +43,13 @@ export class GameManager {
         room.players.set(socketId, playerIndex);
         room.playerNames.set(playerIndex, playerName);
 
-        // ALWAYS update the game with current players
         const playerIds = Array.from(room.players.keys());
         const playerNames = [];
 
-        // Get names in correct order for current players
         for (let i = 0; i < room.players.size; i++) {
             playerNames[i] = room.playerNames.get(i) || `Player ${i + 1}`;
         }
 
-        // Update game with current player list (even if less than 4)
         room.game = new Game(playerIds, playerNames, 100);
 
         return true;
@@ -86,7 +83,6 @@ export class GameManager {
         return this.rooms.get(roomId);
     }
 
-    // NEW METHOD: Get player name by socket ID
     getPlayerName(roomId: string, socketId: string): string | undefined {
         const room = this.rooms.get(roomId);
         if (!room) return undefined;
@@ -97,7 +93,6 @@ export class GameManager {
         return room.playerNames.get(playerIndex);
     }
 
-    // NEW METHOD: Get all player names in order
     getAllPlayerNames(roomId: string): string[] {
         const room = this.rooms.get(roomId);
         if (!room) return [];
@@ -109,7 +104,6 @@ export class GameManager {
         return names;
     }
 
-    // ... rest of the methods stay the same
     playCard(roomId: string, socketId: string, card: Card): boolean {
         const room = this.rooms.get(roomId);
         if (!room) return false;

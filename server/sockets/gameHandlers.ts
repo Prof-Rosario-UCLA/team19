@@ -15,10 +15,8 @@ import {
 
 export function registerGameHandlers(io: Server, socket: Socket, gameManager: GameManager) {
 
-    // Get list of available rooms
     socket.on('get_rooms', async (callback) => {
         try {
-            // For now, keep using in-memory GameManager rooms
             callback(gameManager.getRooms());
         } catch (error) {
             console.error('Error getting rooms:', error);
@@ -26,7 +24,6 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         }
     });
 
-    // Create a new room or use existing room from REST API
     socket.on('create_room', async ({ name, hostUser, existingRoomCode }: {
         name: string,
         hostUser?: { user_id: number, username: string },
@@ -37,28 +34,23 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
             let dbRoom = null;
 
             if (existingRoomCode) {
-                // Room was already created via REST API, just set up socket room
                 console.log('Using existing room from REST API:', existingRoomCode);
                 room_code = existingRoomCode;
 
-                // Get the existing room from database
                 dbRoom = await getRoomByCode(room_code);
                 if (!dbRoom) {
                     callback({ success: false, error: 'Room not found in database' });
                     return;
                 }
             } else {
-                // Generate unique room code for new room
                 room_code = await generateUniqueRoomCode();
 
                 if (hostUser?.user_id) {
-                    // Authenticated user - store in database
                     dbRoom = await createRoom(room_code, hostUser.user_id);
                     await addPlayerToRoom(dbRoom.game_id, hostUser.user_id, hostUser.username, 'registered');
                 }
             }
 
-            // Create in GameManager for real-time game state
             const gameRoom = gameManager.createRoom(room_code, name);
 
             if (gameRoom) {
@@ -78,7 +70,6 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         }
     });
 
-    // Join a room (checks database)
     socket.on('join_room', async ({
                                       roomId,
                                       playerName,
@@ -89,25 +80,19 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         user?: { user_id: number, username: string }
     }, callback) => {
         try {
-            // ... existing database logic ...
-
             const success = gameManager.joinRoom(roomId, socket.id, playerName);
 
             if (success) {
                 socket.join(roomId);
                 const room = gameManager.getRoom(roomId);
                 if (room) {
-                    // Get all player names
                     const allPlayerNames = gameManager.getAllPlayerNames(roomId);
 
-                    // Send individual game states to each player WITH complete player info
                     room.players.forEach((playerIndex, socketId) => {
                         const clientGameState = room.game.getClientGameState(playerIndex);
 
-                        // ENHANCE the game state with complete player information
                         const enhancedGameState = {
                             ...clientGameState,
-                            // Add complete player information that all clients can see
                             allPlayerNames: allPlayerNames,
                             myPlayerIndex: playerIndex,
                             totalPlayers: room.players.size
@@ -132,7 +117,6 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         }
     });
 
-    // Leave room (updates database)
     socket.on('leave_room', async ({
                                        roomId,
                                        user
@@ -141,13 +125,11 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         user?: { user_id: number, username: string }
     }, callback) => {
         try {
-            // Remove from database if authenticated user
             if (user?.user_id) {
                 const dbRoom = await getRoomByCode(roomId);
                 if (dbRoom) {
                     await removePlayerFromRoom(dbRoom.game_id, user.user_id);
 
-                    // Handle host transfer or room deletion
                     if (dbRoom.host_id === user.user_id) {
                         const remainingPlayers = await getPlayersInRoom(dbRoom.game_id);
                         if (remainingPlayers.length === 0) {
@@ -162,7 +144,6 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
                 }
             }
 
-            // Remove from GameManager
             gameManager.leaveRoom(socket.id);
             socket.leave(roomId);
             io.emit('rooms_updated', gameManager.getRooms());
@@ -174,7 +155,6 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         }
     });
 
-    // Select cards for passing
     socket.on('select_passing_cards', ({ roomId, cards }: { roomId: string, cards: Card[] }, callback) => {
         const room = gameManager.getRoom(roomId);
         if (!room) {
@@ -184,7 +164,6 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
 
         const success = gameManager.selectPassingCards(roomId, socket.id, cards);
         if (success) {
-            // Send individual game states to each player
             room.players.forEach((playerIndex, socketId) => {
                 const clientGameState = room.game.getClientGameState(playerIndex);
                 io.to(socketId).emit('game_state_updated', {
@@ -199,7 +178,6 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         }
     });
 
-    // Play a card
     socket.on('play_card', ({ roomId, card }: { roomId: string, card: Card }, callback) => {
         const room = gameManager.getRoom(roomId);
         if (!room) {
@@ -213,7 +191,6 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
             return;
         }
 
-        // Log the attempt to play card
         console.log(`Player ${playerIndex} attempting to play card:`, card);
         console.log('Current game state:', {
             phase: room.game.getCurrentPhase(),
@@ -224,7 +201,6 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
 
         const success = gameManager.playCard(roomId, socket.id, card);
         if (success) {
-            // Send individual game states to each player
             room.players.forEach((playerIndex, socketId) => {
                 const clientGameState = room.game.getClientGameState(playerIndex);
                 io.to(socketId).emit('game_state_updated', {
@@ -240,10 +216,8 @@ export function registerGameHandlers(io: Server, socket: Socket, gameManager: Ga
         }
     });
 
-    // Handle disconnection (updates database)
     socket.on('disconnect', async () => {
         try {
-            // GameManager handles the in-memory cleanup
             gameManager.leaveRoom(socket.id);
             io.emit('rooms_updated', gameManager.getRooms());
             console.log('User disconnected:', socket.id);

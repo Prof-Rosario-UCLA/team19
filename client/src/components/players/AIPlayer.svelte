@@ -10,8 +10,8 @@
   export let score: number = 0;
   export let position: 'north' | 'west' | 'east';
   export let passingPhase: boolean = false;
-  export let isOnlineGame: boolean = false; // Add this
-  export let isRealPlayer: boolean = false; // Add this - true if it's a real online player
+  export let isOnlineGame: boolean = false;
+  export let isRealPlayer: boolean = false;
 
   const dispatch = createEventDispatcher();
 
@@ -19,13 +19,12 @@
   let selectedCardsForPassing: CardType[] = [];
   let screenWidth = 0;
 
-  // AI logic for playing a card (only for local games)
+  // AI logic for playing a card (local games only)
   function playRandomCard() {
     if (cards.length === 0 || !isActive || passingPhase || isOnlineGame) return;
 
     isThinking = true;
 
-    // Add realistic delay for AI decision
     setTimeout(() => {
       if (cards.length > 0) {
         const randomIndex = Math.floor(Math.random() * cards.length);
@@ -37,14 +36,13 @@
         });
       }
       isThinking = false;
-    }, 800 + Math.random() * 1200); // 0.8-2 second delay
+    }, 800 + Math.random() * 1200);
   }
 
-  // AI logic for passing cards (only for local games)
+  // AI logic for passing cards (local games only)
   function selectCardsForPassing() {
     if (!passingPhase || selectedCardsForPassing.length >= 3 || isOnlineGame) return;
 
-    // AI randomly selects 3 cards to pass
     const shuffledCards = [...cards].sort(() => Math.random() - 0.5);
     selectedCardsForPassing = shuffledCards.slice(0, 3);
 
@@ -54,12 +52,12 @@
     });
   }
 
-  // Auto-play when it becomes this AI's turn (only for local games)
+  // Auto-play when it becomes this AI's turn (local games only)
   $: if (isActive && !passingPhase && !isThinking && !isOnlineGame) {
     playRandomCard();
   }
 
-  // Auto-select cards for passing when entering passing phase (only for local games)
+  // Auto-select cards for passing when entering passing phase (local games only)
   $: if (passingPhase && selectedCardsForPassing.length === 0 && !isOnlineGame) {
     setTimeout(() => selectCardsForPassing(), 500 + Math.random() * 1000);
   }
@@ -68,10 +66,12 @@
 </script>
 
 <svelte:window bind:innerWidth={screenWidth} />
+
 <div class="player-container {position}">
   <div class="player-info">
     <div class="player-name {isActive && !passingPhase ? 'active' : ''}">{playerName}</div>
     <div class="player-score">Score: {score}</div>
+
     {#if isActive && !passingPhase}
       {#if isOnlineGame}
         <div class="text-yellow-300 text-xs animate-pulse">
@@ -81,9 +81,11 @@
         <div class="text-yellow-300 text-xs animate-pulse">Thinking...</div>
       {/if}
     {/if}
+
     {#if passingPhase && selectedCardsForPassing.length > 0 && !isOnlineGame}
       <div class="text-blue-300 text-xs">Ready to pass</div>
     {/if}
+
     {#if isOnlineGame && isRealPlayer}
       <div class="text-xs text-gray-400">👤 Player</div>
     {:else if isOnlineGame && !isRealPlayer}
@@ -93,7 +95,6 @@
 
   <div class="hand-container {position === 'west' || position === 'east' ? 'vertical' : ''}">
     {#if showCompactView && cards.length > 0}
-      <!-- Compact view: single card + count -->
       <div class="compact-hand">
         <div class="single-card-display">
           <Card
@@ -116,6 +117,7 @@
     {/if}
   </div>
 </div>
+
 <style>
   .player-container {
     display: flex;

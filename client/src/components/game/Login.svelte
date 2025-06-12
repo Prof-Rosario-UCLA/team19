@@ -10,6 +10,8 @@
   let confirmPassword = '';
   let loading = false;
   let error = '';
+  let hasConsented = false;
+  let showConsent = false;
 
   function toggleMode() {
     isCreatingAccount = !isCreatingAccount;
@@ -54,7 +56,6 @@
 
     try {
       if (isCreatingAccount) {
-        // Register new account
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: {
@@ -70,7 +71,6 @@
         const data = await response.json();
 
         if (data.success) {
-          // Store the JWT token
           localStorage.setItem('hearts_token', data.data.token);
 
           dispatch('accountCreated', {
@@ -81,7 +81,6 @@
           error = data.error?.message || 'Failed to create account';
         }
       } else {
-        // Login
         const response = await fetch('/api/auth/login', {
           method: 'POST',
           headers: {
@@ -96,7 +95,6 @@
         const data = await response.json();
 
         if (data.success) {
-          // Store the JWT token
           localStorage.setItem('hearts_token', data.data.token);
 
           dispatch('loginSuccess', {
@@ -108,7 +106,6 @@
         }
       }
     } catch (err) {
-      console.error('Auth error:', err);
       error = 'Something went wrong. Please try again.';
     } finally {
       loading = false;
@@ -124,9 +121,6 @@
   function playAsGuest() {
     dispatch('playAsGuest');
   }
-
-  let hasConsented = false;
-  let showConsent = false;
 
   // Check if user has already consented
   onMount(() => {
@@ -277,13 +271,13 @@
                   class="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg shadow-lg transition-all transform hover:scale-105 disabled:hover:scale-100 text-lg font-semibold disabled:cursor-not-allowed"
           >
             {#if loading}
-            <span class="flex items-center justify-center gap-2">
-              <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-                <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              {isCreatingAccount ? 'Creating Account...' : 'Signing In...'}
-            </span>
+              <span class="flex items-center justify-center gap-2">
+                <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                  <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {isCreatingAccount ? 'Creating Account...' : 'Signing In...'}
+              </span>
             {:else}
               {isCreatingAccount ? '🎮 Create Account' : '🔓 Sign In'}
             {/if}

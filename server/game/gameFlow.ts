@@ -1,7 +1,3 @@
-// This file contains validation functions for the game flow
-// This includes logic for the passing, playing, and scoring phases
-
-
 import { Card, Player, GameState, Suit, Rank } from '../../types/types.js';
 import { createDeck, dealCards, sortHand, calculateTrickPoints, isValidPlay } from './Deck.js';
 
@@ -17,14 +13,12 @@ export interface TrickWinner {
     points: number;
 }
 
-// Interface for tracking selected cards for passing
 export interface PassingState {
     selectedCards: Map<number, Card[]>;
     direction: PassingDirection;
     isComplete: boolean;
 }
 
-// Initialize a new game state
 export function initializeGame(playerIds: string[], playerNames: string[]): GameState {
     if (playerIds.length !== playerNames.length) {
         throw new Error('Player IDs and names must match in length');
@@ -52,26 +46,23 @@ export function initializeGame(playerIds: string[], playerNames: string[]): Game
     };
 }
 
-// Deal cards to all players and sort their hands
 export function dealNewHand(gameState: GameState): GameState {
     const deck = createDeck();
     const hands = dealCards(deck);
-    
-    // Update each player's hand with sorted cards
+
     gameState.players.forEach((player, index) => {
         player.hand = sortHand(hands[index]);
     });
-    
+
     gameState.deck = deck;
     gameState.currentTrick = [];
     gameState.heartsBroken = false;
     gameState.isFirstTrick = true;
     gameState.tricksPlayed = 0;
-    
+
     return gameState;
 }
 
-// Determine passing direction based on hand number (0-based)
 export function getPassingDirection(handNumber: number): PassingDirection {
     switch (handNumber % 4) {
         case 0: return PassingDirection.LEFT;
@@ -79,10 +70,9 @@ export function getPassingDirection(handNumber: number): PassingDirection {
         case 2: return PassingDirection.ACROSS;
         case 3: return PassingDirection.HOLD;
     }
-    return PassingDirection.HOLD; // Default case
+    return PassingDirection.HOLD;
 }
 
-// Initialize the passing state for a new hand
 export function initializePassingState(handNumber: number): PassingState {
     return {
         selectedCards: new Map(),
@@ -91,7 +81,6 @@ export function initializePassingState(handNumber: number): PassingState {
     };
 }
 
-// Validate cards selected for passing (3 cards per player, and they must be in the player's hand)
 export function validatePassingCards(cards: Card[], playerHand: Card[]): boolean {
     if (cards.length !== 3) {
         return false;
@@ -104,7 +93,6 @@ export function validatePassingCards(cards: Card[], playerHand: Card[]): boolean
     );
 }
 
-// Select cards for passing
 export function selectCardsForPassing(
     gameState: GameState,
     passingState: PassingState,
@@ -115,67 +103,56 @@ export function selectCardsForPassing(
         return null;
     }
 
-    // Validate the cards
     if (!validatePassingCards(cards, gameState.players[playerIndex].hand)) {
         return null;
     }
 
-    // Update the passing state with the selected cards
     const newPassingState = {
         ...passingState,
         selectedCards: new Map(passingState.selectedCards)
     };
     newPassingState.selectedCards.set(playerIndex, [...cards]);
 
-    // Check if all players have selected their cards
     newPassingState.isComplete = newPassingState.selectedCards.size === 4 &&
         Array.from(newPassingState.selectedCards.values()).every(cards => cards.length === 3);
 
     return newPassingState;
 }
 
-// Execute the passing of cards once all players have selected
 export function executePassingPhase(
     gameState: GameState,
     passingState: PassingState
 ): GameState | null {
-    // Validate that we can pass cards
     if (passingState.direction === PassingDirection.HOLD) {
         return gameState;
     }
 
-    // Validate that all players have selected exactly 3 cards
     if (!passingState.isComplete) {
         return null;
     }
 
     const numPlayers = gameState.players.length;
     const offset = passingState.direction === PassingDirection.LEFT ? 1 :
-                  passingState.direction === PassingDirection.RIGHT ? numPlayers - 1 :
-                  passingState.direction === PassingDirection.ACROSS ? 2 : 0;
+        passingState.direction === PassingDirection.RIGHT ? numPlayers - 1 :
+            passingState.direction === PassingDirection.ACROSS ? 2 : 0;
 
-    // Create new hands for each player
     const newHands: Card[][] = gameState.players.map((player, fromIdx) => {
-        // Get the cards that weren't passed
         const remainingCards = player.hand.filter(card =>
             !passingState.selectedCards.get(fromIdx)?.some(passedCard =>
                 passedCard.suit === card.suit && passedCard.rank === card.rank
             )
         );
 
-        // Calculate which player is passing to this player
         const fromPlayerIdx = (fromIdx - offset + numPlayers) % numPlayers;
         const receivedCards = passingState.selectedCards.get(fromPlayerIdx) || [];
 
         return [...remainingCards, ...receivedCards];
     });
 
-    // Validate that all new hands have exactly 13 cards
     if (newHands.some(hand => hand.length !== 13)) {
         return null;
     }
 
-    // Update and sort each player's hand
     gameState.players.forEach((player, index) => {
         player.hand = sortHand(newHands[index]);
     });
@@ -183,8 +160,6 @@ export function executePassingPhase(
     return gameState;
 }
 
-// Check if a player has completed their card selection for passing
-// We probably need some sort of listener to check if all players have selected their cards
 export function hasPlayerSelectedPassingCards(
     passingState: PassingState,
     playerIndex: number
@@ -193,45 +168,39 @@ export function hasPlayerSelectedPassingCards(
     return selectedCards !== undefined && selectedCards.length === 3;
 }
 
-// Get the number of players who have selected their passing cards
 export function getPlayersReadyToPass(passingState: PassingState): number {
     return Array.from(passingState.selectedCards.values())
         .filter(cards => cards.length === 3)
         .length;
 }
 
-// Find the player with the Two of Clubs and set them as the trick leader
 export function findStartingPlayer(gameState: GameState): number {
     const startingPlayerIndex = gameState.players.findIndex(player =>
         player.hand.some(card =>
             card.suit === Suit.CLUBS && card.rank === Rank.TWO
         )
     );
-    
+
     if (startingPlayerIndex === -1) {
         console.error('Could not find player with 2 of Clubs');
         return 0;
     }
 
-    // Set this player as the trick leader
     gameState.trickLeader = startingPlayerIndex;
     console.log(`Found starting player ${startingPlayerIndex} with 2 of Clubs, set as trick leader`);
-    
+
     return startingPlayerIndex;
 }
 
-// Start the playing phase
 export function startPlayingPhase(gameState: GameState): GameState {
     if (gameState.isFirstTrick) {
-        // For first trick, find player with 2 of Clubs
         const startingPlayer = findStartingPlayer(gameState);
         console.log('Starting first trick with player', startingPlayer);
     }
-    
+
     return gameState;
 }
 
-// Play a card in the current trick
 export function playCard(
     gameState: GameState,
     playerIndex: number,
@@ -246,8 +215,7 @@ export function playCard(
     });
 
     const player = gameState.players[playerIndex];
-    
-    // Validate the play
+
     if (!isValidPlay(
         card,
         player.hand,
@@ -256,43 +224,36 @@ export function playCard(
         gameState.isFirstTrick
     )) {
         console.log('Invalid play in gameFlow.playCard');
-        return null; // Invalid play
+        return null;
     }
-    
-    // Remove the card from player's hand
-    player.hand = player.hand.filter(c => 
+
+    player.hand = player.hand.filter(c =>
         !(c.suit === card.suit && c.rank === card.rank)
     );
-    
-    // Add the card to the current trick
+
     gameState.currentTrick.push(card);
-    
-    // Check if Hearts has been broken
+
     if (card.suit === Suit.HEARTS) {
         gameState.heartsBroken = true;
     }
-    
+
     return gameState;
 }
 
-// Determine the winner of a trick
 export function determineTrickWinner(trick: Card[], trickLeader: number): TrickWinner {
     if (trick.length === 0) return { playerIndex: trickLeader, points: 0 };
 
     const leadSuit = trick[0].suit;
     let highestValue = -1;
     let winningTrickIndex = 0;
-    
-    // Log the trick for debugging
+
     console.log('Determining trick winner:', {
         trick: trick.map(card => `${card.rank}${card.suit.charAt(0)}`),
         leadSuit,
         trickLeader
     });
-    
-    // Find the highest card of the lead suit in the trick
+
     trick.forEach((card, trickIndex) => {
-        // Only consider cards of the lead suit
         if (card.suit === leadSuit) {
             console.log(`Card ${card.rank}${card.suit.charAt(0)} is of lead suit, value: ${card.value}`);
             if (card.value > highestValue) {
@@ -304,85 +265,67 @@ export function determineTrickWinner(trick: Card[], trickLeader: number): TrickW
             console.log(`Card ${card.rank}${card.suit.charAt(0)} is not of lead suit, ignoring`);
         }
     });
-    
-    // Convert trick index to actual player index
-    // The trick array is ordered starting from the trick leader
+
     const winningPlayerIndex = (trickLeader + winningTrickIndex) % 4;
-    
+
     const points = calculateTrickPoints(trick);
     console.log(`Trick winner: player ${winningPlayerIndex} (trick index ${winningTrickIndex}) with ${points} points`);
-    
+
     return {
         playerIndex: winningPlayerIndex,
         points
     };
 }
 
-// Reset the trick state and update game state after a trick is complete
 export function finishTrick(gameState: GameState): GameState {
     const winner = determineTrickWinner(gameState.currentTrick, gameState.trickLeader);
-    
-    // Log the trick completion
+
     console.log('Finishing trick:', {
         trick: gameState.currentTrick.map(card => `${card.rank}${card.suit.charAt(0)}`),
         trickLeader: gameState.trickLeader,
         winner: winner.playerIndex,
         points: winner.points
     });
-    
-    // Update trick leader for next trick
+
     gameState.trickLeader = winner.playerIndex;
-    
-    // Add points to the winner's score
     gameState.players[winner.playerIndex].score += winner.points;
-    
-    // Clear the current trick
     gameState.currentTrick = [];
-    
-    // Update tricks played and first trick status
     gameState.tricksPlayed++;
     gameState.isFirstTrick = false;
-    
-    // Log the updated game state
+
     console.log('Updated game state after trick:', {
         trickLeader: gameState.trickLeader,
         playerScores: gameState.players.map(p => p.score),
         tricksPlayed: gameState.tricksPlayed
     });
-    
+
     return gameState;
 }
 
-// Check if the hand is complete (13 tricks played)
 export function isHandComplete(gameState: GameState): boolean {
     return gameState.tricksPlayed === 13;
 }
 
-// Start a new hand
 export function startNewHand(gameState: GameState): GameState {
     gameState.handNumber++;
     return dealNewHand(gameState);
 }
 
-// Calculate scores for the hand and check for shooting the moon
 export function scoreHand(gameState: GameState): GameState {
     const handScores = gameState.players.map(player => ({
         playerId: player.id,
         points: 0
     }));
-    
-    // Calculate total points for the hand
+
     let totalPoints = 0;
     gameState.players.forEach((player, index) => {
         const points = player.score;
         handScores[index].points = points;
         totalPoints += points;
     });
-    
-    // Check for shooting the moon
+
     const moonShooter = handScores.find(score => score.points === 26);
     if (moonShooter) {
-        // If someone shot the moon, they get 0 and everyone else gets 26
         handScores.forEach(score => {
             if (score.playerId === moonShooter.playerId) {
                 score.points = 0;
@@ -391,50 +334,43 @@ export function scoreHand(gameState: GameState): GameState {
             }
         });
     }
-    
-    // Update game scores
+
     handScores.forEach(score => {
         gameState.scores[score.playerId] += score.points;
     });
-    
+
     return gameState;
 }
 
-// Check if the game is over (someone has reached or exceeded 50 points)
 export function isGameOver(gameState: GameState, maxScore: number): boolean {
     return Object.values(gameState.scores).some(score => score >= maxScore);
 }
 
-// Get the winner of the game
 export function getGameWinner(gameState: GameState): string {
     const [winnerId] = Object.entries(gameState.scores)
-        .reduce(([minId, minScore], [id, score]) => 
-            score < minScore ? [id, score] : [minId, minScore],
+        .reduce(([minId, minScore], [id, score]) =>
+                score < minScore ? [id, score] : [minId, minScore],
             ['', Infinity]
         );
     return winnerId;
 }
 
-// Validate that a player can play a specific card
 export function canPlayCard(
     gameState: GameState,
     playerIndex: number,
     card: Card
 ): boolean {
     const player = gameState.players[playerIndex];
-    
-    // Check if it's the player's turn
+
     const currentPlayerIndex = (gameState.trickLeader + gameState.currentTrick.length) % 4;
     if (playerIndex !== currentPlayerIndex) {
         return false;
     }
-    
-    // Check if the player has the card
+
     if (!player.hand.some(c => c.suit === card.suit && c.rank === card.rank)) {
         return false;
     }
-    
-    // Check if the play is valid according to Hearts rules
+
     return isValidPlay(
         card,
         player.hand,
@@ -442,4 +378,4 @@ export function canPlayCard(
         gameState.heartsBroken,
         gameState.isFirstTrick
     );
-} 
+}

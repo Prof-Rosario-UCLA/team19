@@ -1,13 +1,9 @@
 <script lang="ts">
   import { onMount, setContext } from 'svelte';
-
-  // Import components
   import WelcomeScreen from './game/WelcomeScreen.svelte';
   import GameBoard from './game/GameBoard.svelte';
   import Login from './game/Login.svelte';
   import type { CardType, PlayerType, GameState } from '../lib/types.ts';
-
-  // Import socket stores
   import {
     gameState,
     players,
@@ -26,7 +22,7 @@
   let showLogin = false;
   let isLoggedIn = false;
 
-  // Local game state (only used for offline games)
+  // Local game state (offline games only)
   let localGameState: GameState = {
     gameStarted: false,
     gameOver: false,
@@ -48,7 +44,7 @@
   let humanReadyToPass = false;
   let humanSelectedCards: CardType[] = [];
 
-  // Helper function to make authenticated API calls
+  // Make authenticated API calls
   function makeAuthenticatedRequest(url: string, options: any = {}) {
     const headers = {
       'Content-Type': 'application/json',
@@ -65,9 +61,8 @@
     });
   }
 
-  // Initialize LOCAL game
+  // Initialize local game
   function initializeLocalGame() {
-    // Set up local players
     localPlayers = [
       { name: 'You', hand: [], score: 0, isHuman: true },
       { name: 'Computer 1', hand: [], score: 0, isHuman: false },
@@ -75,7 +70,6 @@
       { name: 'Computer 3', hand: [], score: 0, isHuman: false }
     ];
 
-    // Initialize game state for local game
     localGameState = {
       gameStarted: true,
       gameOver: false,
@@ -99,14 +93,11 @@
       localRoundScores[player.name] = 0;
     });
 
-    // Deal cards
     dealCards();
-
-    // Set passing direction
     updatePassingDirection();
   }
 
-  // Deal cards to players (LOCAL game only)
+  // Deal cards to players (local game only)
   function dealCards() {
     const suits: ("hearts" | "diamonds" | "clubs" | "spades")[] = ['hearts', 'diamonds', 'clubs', 'spades'];
     const ranks: (number | "J" | "Q" | "K" | "A")[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 'J', 'Q', 'K', 'A'];
@@ -129,7 +120,7 @@
     localPlayers.forEach((player, index) => {
       player.hand = deck.slice(index * 13, (index + 1) * 13);
 
-      // Sort the hands for easier play
+      // Sort hands for easier play
       player.hand.sort((a, b) => {
         const suitOrder = { 'clubs': 0, 'diamonds': 1, 'spades': 2, 'hearts': 3 };
         const rankOrder = {
@@ -143,11 +134,9 @@
         return rankOrder[a.rank] - rankOrder[b.rank];
       });
 
-      // Update game state hands
       localGameState.hands[player.name] = [...player.hand];
     });
 
-    // Update reactive reference
     localPlayers = [...localPlayers];
   }
 
@@ -158,7 +147,7 @@
     localGameState.passingPhase = localGameState.passingDirection !== 'none';
   }
 
-  // Core card playing logic (LOCAL game only)
+  // Core card playing logic (local game only)
   function playCard(player: string, card: CardType) {
     if (localGameState.passingPhase || localGameState.gameOver) return false;
 
@@ -192,10 +181,10 @@
     return true;
   }
 
-  // Complete a trick (LOCAL game only)
+  // Complete a trick (local game only)
   function completeTrick() {
     setTimeout(() => {
-      // Simple trick winner logic - highest card of led suit wins
+      // Determine trick winner - highest card of led suit wins
       const ledSuit = localGameState.currentTrick[0].card.suit;
       let winner = localGameState.currentTrick[0];
 
@@ -229,12 +218,11 @@
     }, 1000);
   }
 
-  // End round (LOCAL game only)
+  // End round (local game only)
   function endRound() {
-    // Calculate scores for the round
-    // This is simplified - in real Hearts, you'd count hearts and Queen of Spades
+    // Calculate round scores (simplified - normally counts hearts and Queen of Spades)
     localPlayers.forEach(player => {
-      const points = Math.floor(Math.random() * 26); // Random for now
+      const points = Math.floor(Math.random() * 26);
       localRoundScores[player.name] = points;
       localGameState.roundScores[player.name] = points;
       player.score += points;
@@ -257,7 +245,7 @@
     }, 3000);
   }
 
-  // Start new round (LOCAL game only)
+  // Start new round (local game only)
   function startNewRound() {
     localGameState.currentTrick = [];
     localGameState.trickWinner = null;
@@ -270,7 +258,6 @@
       localGameState.roundScores[player.name] = 0;
     });
 
-    // Deal new cards
     dealCards();
     updatePassingDirection();
 
@@ -289,9 +276,7 @@
 
     if ($isOnlineGame) {
       // Online game handled by socket store
-      console.log('Online play card handled by socket store');
     } else {
-      // Local game - handle locally
       playCard(player, card);
     }
   }
@@ -301,9 +286,7 @@
 
     if ($isOnlineGame) {
       // Online game handled by socket store
-      console.log('Online pass cards handled by socket store');
     } else {
-      // Local game - handle locally
       localGameState.passingPhase = false;
       humanReadyToPass = false;
       humanSelectedCards = [];
@@ -320,9 +303,7 @@
   function handleRestartGame() {
     if ($isOnlineGame) {
       // Online game handled by socket store
-      console.log('Online restart handled by socket store');
     } else {
-      // Local game - restart locally
       initializeLocalGame();
     }
   }
@@ -367,7 +348,7 @@
     localStorage.removeItem('hearts_token');
   }
 
-  // Check existing auth on mount
+  // Check existing authentication on mount
   async function checkExistingAuth() {
     const token = localStorage.getItem('hearts_token');
     if (token) {
@@ -386,12 +367,10 @@
           currentUser = data.data.user;
           authToken = token;
           isLoggedIn = true;
-          console.log('Session restored for:', currentUser.username);
         } else {
           localStorage.removeItem('hearts_token');
         }
       } catch (error) {
-        console.error('Error validating token:', error);
         localStorage.removeItem('hearts_token');
       }
     }
@@ -411,7 +390,6 @@
   $: showWaitingRoom = $inWaitingRoom;
 </script>
 
-<!-- Main container -->
 <div class="min-h-screen bg-gradient-to-br from-green-900 via-green-800 to-emerald-900">
   {#if showLogin}
     <Login
@@ -420,7 +398,6 @@
             on:playAsGuest={handlePlayAsGuest}
     />
   {:else if showWaitingRoom}
-    <!-- WaitingRoom will be shown through WelcomeScreen -->
     <WelcomeScreen
             {currentUser}
             {authToken}
@@ -455,7 +432,6 @@
 </div>
 
 <style>
-  /* Background gradients */
   .bg-gradient-radial {
     background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
   }

@@ -12,7 +12,7 @@ export const requireAuth = async (req: any, res: any, next: any) => {
         // Verify JWT token
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
 
-        // Get user from database (try user_id first, fallback to auth_id)
+        // Get user from database
         let user = null;
         if (decoded.user_id) {
             user = await getUserById(decoded.user_id);
@@ -24,15 +24,11 @@ export const requireAuth = async (req: any, res: any, next: any) => {
         if (!user) {
             return res.status(401).json({ error: 'User not found' });
         }
-
-        // Add user to request
         req.user = user;
         next();
 
     } catch (error: any) {
         console.error('Auth error:', error.message);
-
-        // Handle JWT errors
         if (error.name === 'JsonWebTokenError') {
             return res.status(401).json({ error: 'Invalid token' });
         }

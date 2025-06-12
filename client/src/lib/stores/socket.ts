@@ -1,15 +1,11 @@
-// src/lib/stores/socket.ts
-
 import { io, type Socket } from 'socket.io-client';
 import { writable, get, derived } from 'svelte/store';
 import type { CardType, PlayerType, GameState, RoomInfo } from '../types';
 
-// Helper function to normalize card data from server format to frontend format
 function normalizeCards(cards: any[]): CardType[] {
     if (!cards || !Array.isArray(cards)) return [];
 
     return cards.map((card, index) => {
-        // Debug logging for each card
         console.log(`Normalizing card ${index}:`, card);
 
         if (!card || typeof card !== 'object') {
@@ -27,8 +23,6 @@ function normalizeCards(cards: any[]): CardType[] {
     });
 }
 
-// ------- STORES -------
-
 export const socket = writable<Socket | null>(null);
 export const connectionStatus = writable<'disconnected'|'connecting'|'connected'>('disconnected');
 export const rooms = writable<RoomInfo[]>([]);
@@ -38,29 +32,18 @@ export const currentRoomId = writable<string | null>(null);
 export const currentRoomName = writable<string>('');
 export const selfPlayerName = writable<string>('');
 export const error = writable<string | null>(null);
-
-// Waiting room specific stores
 export const inWaitingRoom = writable<boolean>(false);
 export const roomPlayerCount = writable<number>(1);
 export const gameStarting = writable<boolean>(false);
-
-// Store for the current player's index (sent by server)
 export const myPlayerIndex = writable<number | null>(null);
-
-// Store for all player names in order
 export const allPlayerNames = writable<string[]>([]);
-
-// Store for raw game state from server
 export const rawGameState = writable<any>(null);
 
-// ------- SOCKET CONNECTION -------
-
 export function connectSocket(url?: string) {
-    if (get(socket)) return; // Already connected
+    if (get(socket)) return;
 
     connectionStatus.set('connecting');
 
-    // Auto-detect URL based on environment
     const isDevelopment = import.meta.env?.VITE_DEV_MODE === 'true';
     const socketUrl = url || (isDevelopment ? 'http://localhost:3000' : window.location.origin);
 
@@ -95,12 +78,10 @@ export function connectSocket(url?: string) {
         console.error('Connection error:', err);
     });
 
-    // -------- SOCKET EVENTS --------
     s.on('rooms_updated', (roomList) => {
         console.log('Rooms updated:', roomList);
         rooms.set(roomList);
 
-        // Update current room player count if we're in a room
         const currentId = get(currentRoomId);
         if (currentId) {
             const currentRoom = roomList.find(r => r.id === currentId);
@@ -117,7 +98,6 @@ export function connectSocket(url?: string) {
             if (data.players) {
                 console.log('Setting players from room_state_updated:', data.players);
 
-                // During waiting phase, just track basic player info
                 const roomPlayers = data.players.map((player: any, index: number) => ({
                     name: player.name || player.username || `Player ${index + 1}`,
                     hand: [],
@@ -128,7 +108,6 @@ export function connectSocket(url?: string) {
                 players.set(roomPlayers);
                 roomPlayerCount.set(data.players.length);
 
-                // Also store the player names separately
                 const playerNames = data.players.map((p: any) => p.name || p.username || 'Unknown');
                 allPlayerNames.set(playerNames);
             }
@@ -138,7 +117,6 @@ export function connectSocket(url?: string) {
     s.on('game_state_updated', (data) => {
         console.log('Game state updated:', data);
 
-        // Your server sends: { gameState: {...}, currentPhase: '...', currentPlayerIndex: ... }
         let actualGameState = data.gameState || data;
         let currentPhase = data.currentPhase;
         let serverCurrentPlayerIndex = data.currentPlayerIndex;
@@ -149,21 +127,17 @@ export function connectSocket(url?: string) {
             console.log('Players from server:', actualGameState.players);
             rawGameState.set(actualGameState);
 
-            // Extract player information
             if (actualGameState.players && Array.isArray(actualGameState.players)) {
                 const playerNames = actualGameState.players.map((p: any) => p.name || p.username || 'Unknown');
                 console.log('Extracted player names:', playerNames);
                 allPlayerNames.set(playerNames);
 
-                // Find my player index based on my name
                 const myName = get(selfPlayerName);
                 const myIndex = playerNames.findIndex((name: string) => name === myName);
                 console.log('My name:', myName, 'My index:', myIndex);
                 myPlayerIndex.set(myIndex >= 0 ? myIndex : null);
 
-                // Only create rotated players if we found our index
                 if (myIndex >= 0) {
-                    // Create rotated player array where "I" am always at index 0 (south position)
                     const rotatedPlayers = [];
                     const totalPlayers = playerNames.length;
 
@@ -173,8 +147,6 @@ export function connectSocket(url?: string) {
                             const player = actualGameState.players[actualIndex];
                             rotatedPlayers.push({
                                 name: player.name || player.username || `Player ${actualIndex + 1}`,
-                                // IMPORTANT: Only give hand data to myself (index 0 in rotated array)
-                                // Also normalize the card data from server format to frontend format
                                 hand: i === 0 ? (() => {
                                     const originalHand = actualGameState.myHand || player.hand || [];
                                     console.log('Original hand before normalization:', originalHand);
@@ -199,11 +171,8 @@ export function connectSocket(url?: string) {
                     console.log('My hand data:', actualGameState.myHand);
                     players.set(rotatedPlayers);
                 } else {
-                    // Fallback: just use the players as-is if we can't find our index
                     const formattedPlayers = actualGameState.players.map((player: any, index: number) => ({
                         name: player.name || player.username || `Player ${index + 1}`,
-                        // Only show hand for the first player (assumed to be me)
-                        // Also normalize the card data from server format to frontend format
                         hand: index === 0 ? normalizeCards(actualGameState.myHand || player.hand || []) : [],
                         score: player.score || 0,
                         isHuman: true
@@ -215,22 +184,17 @@ export function connectSocket(url?: string) {
 
                 roomPlayerCount.set(playerNames.length);
 
-                // Calculate rotated current player index
                 const rotatedCurrentPlayerIndex = (myIndex >= 0 && serverCurrentPlayerIndex !== undefined) ?
                     (serverCurrentPlayerIndex - myIndex + 4) % 4 :
                     serverCurrentPlayerIndex;
 
-                // Enhance game state with server data
                 const enhancedGameState = {
                     ...actualGameState,
                     currentPhase: currentPhase,
                     currentPlayerIndex: serverCurrentPlayerIndex,
-                    // Map server phases to our expected format
                     passingPhase: currentPhase === 'PASSING',
                     gameStarted: currentPhase !== 'WAITING_FOR_PLAYERS',
                     gameOver: currentPhase === 'GAME_OVER',
-
-                    // Rotate current player index relative to me
                     rotatedCurrentPlayerIndex: rotatedCurrentPlayerIndex
                 };
 
@@ -239,7 +203,6 @@ export function connectSocket(url?: string) {
             }
         }
 
-        // Handle phase transitions
         if (currentPhase === 'PASSING' && get(inWaitingRoom)) {
             console.log('Game started, exiting waiting room');
             inWaitingRoom.set(false);
@@ -250,7 +213,6 @@ export function connectSocket(url?: string) {
             gameStarting.set(false);
         }
 
-        // JANK FIX: Force game start if flag is set
         if (actualGameState?.forceGameStart && get(inWaitingRoom)) {
             console.log('JANK FIX: Force starting game due to forceGameStart flag');
             inWaitingRoom.set(false);
@@ -368,8 +330,6 @@ export function connectSocket(url?: string) {
     });
 }
 
-// ------- DISCONNECT -------
-
 export function disconnectSocket() {
     const s = get(socket);
     if (s) {
@@ -397,8 +357,6 @@ function resetAllStores() {
     error.set(null);
 }
 
-// ------- ROOMS -------
-
 export function createRoom(roomName: string, hostUser?: any, cb?: (response: any) => void) {
     const s = get(socket);
     if (!s) {
@@ -416,7 +374,6 @@ export function createRoom(roomName: string, hostUser?: any, cb?: (response: any
         if (resp.success) {
             console.log('Room created:', resp);
             currentRoomName.set(roomName);
-            // Note: currentRoomId will be set when we join the room
             if (cb) cb(resp);
         } else {
             error.set(resp.error || 'Failed to create room');
@@ -450,7 +407,6 @@ export function joinRoom(roomId: string, playerName: string, user?: any, cb?: (r
             inWaitingRoom.set(true);
             gameStarting.set(false);
 
-            // Server will send game_state_updated event separately with player data
             if (cb) cb(resp);
         } else {
             error.set(resp.error || 'Failed to join room');
@@ -487,8 +443,6 @@ export function getRooms(cb?: (rooms: RoomInfo[]) => void) {
     });
 }
 
-// ------- GAME ACTIONS -------
-
 export function playCard(card: CardType, cb?: (response: any) => void) {
     const s = get(socket);
     const roomId = get(currentRoomId);
@@ -498,10 +452,9 @@ export function playCard(card: CardType, cb?: (response: any) => void) {
         return;
     }
 
-    // Convert card to server format (uppercase suit, add value)
     const serverCard = {
         suit: card.suit.toUpperCase(),
-        rank: card.rank.toString(), // Ensure rank is string
+        rank: card.rank.toString(),
         value: typeof card.rank === 'number' ? card.rank :
             card.rank === 'J' ? 11 : card.rank === 'Q' ? 12 :
                 card.rank === 'K' ? 13 : card.rank === 'A' ? 14 : parseInt(card.rank.toString())
@@ -509,7 +462,6 @@ export function playCard(card: CardType, cb?: (response: any) => void) {
 
     console.log('Sending card to server:', serverCard);
 
-    // Your server expects: play_card with { roomId, card }
     s.emit('play_card', { roomId, card: serverCard }, (resp) => {
         if (!resp.success && resp.error) {
             error.set(resp.error);
@@ -528,7 +480,6 @@ export function passCards(cards: CardType[], cb?: (response: any) => void) {
         return;
     }
 
-    // Convert cards to server format (uppercase suits)
     const serverCards = cards.map(card => ({
         suit: card.suit.toUpperCase(),
         rank: card.rank,
@@ -539,7 +490,6 @@ export function passCards(cards: CardType[], cb?: (response: any) => void) {
 
     console.log('Sending cards to server:', serverCards);
 
-    // Your server expects: select_passing_cards with { roomId, cards }
     s.emit('select_passing_cards', { roomId, cards: serverCards }, (resp) => {
         if (!resp.success && resp.error) {
             error.set(resp.error);
@@ -565,15 +515,12 @@ export function restartGame(cb?: (response: any) => void) {
     });
 }
 
-// ------- UTIL -------
-
 export function getSelfPlayer(): PlayerType | undefined {
     const ps = get(players);
     const name = get(selfPlayerName);
     return ps.find(p => p.name === name);
 }
 
-// Create a derived store for isOnlineGame
 export const isOnlineGame = derived(
     [socket, currentRoomId],
     ([$socket, $currentRoomId]) => {

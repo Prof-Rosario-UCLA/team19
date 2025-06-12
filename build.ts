@@ -14,24 +14,20 @@ console.log('\nBuilding client...');
 process.chdir(join(rootDir, 'client'));
 execSync('npm run build', { stdio: 'inherit' });
 
-// Ensure server dist directory exists
 const serverDistDir = join(rootDir, 'server', 'dist');
 if (!existsSync(serverDistDir)) {
     mkdirSync(serverDistDir, { recursive: true });
 }
 
-// Ensure server public directory exists
 const serverPublicDir = join(rootDir, 'server', 'public');
 if (!existsSync(serverPublicDir)) {
     mkdirSync(serverPublicDir, { recursive: true });
 }
 
-// Copy client build to server public directory
 console.log('\nCopying client build to server.');
 const clientBuildDir = join(rootDir, 'client', 'dist');
 cpSync(clientBuildDir, serverPublicDir, { recursive: true });
 
-// Build server
 console.log('\nBuilding server...');
 process.chdir(join(rootDir, 'server'));
 execSync('npm run build', { stdio: 'inherit' })

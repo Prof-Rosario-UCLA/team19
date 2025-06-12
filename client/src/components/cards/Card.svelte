@@ -31,10 +31,10 @@
   }[suit];
 
   const rankName = typeof rank === 'number' ? rank.toString() :
-      rank === 'J' ? 'Jack' :
-      rank === 'Q' ? 'Queen' :
-      rank === 'K' ? 'King' :
-      rank === 'A' ? 'Ace' : rank.toString();
+          rank === 'J' ? 'Jack' :
+                  rank === 'Q' ? 'Queen' :
+                          rank === 'K' ? 'King' :
+                                  rank === 'A' ? 'Ace' : rank.toString();
 
   // Debug logging to see what each card receives
   $: console.log(`Card component: ${rank} of ${suit} (red: ${isRed}, symbol: ${suitSymbol})`);
@@ -55,21 +55,21 @@
   }
 
   $: accessibleLabel = faceUp
-    ? `${rankName} of ${suitName}${selected ? ', selected' : ''}`
-    : 'Face down card';
+          ? `${rankName} of ${suitName}${selected ? ', selected' : ''}`
+          : 'Face down card';
 </script>
 
 <div
-    class="relative bg-white border-2 rounded-md shadow-md transition-all duration-200 ease-in-out
+        class="relative bg-white border-2 rounded-md shadow-md transition-all duration-200 ease-in-out
      {selectable ? 'cursor-pointer hover:-translate-y-2 focus:ring-4 focus:ring-blue-500' : 'cursor-default'}
      {selected ? '-translate-y-4 shadow-xl ring-4 ring-yellow-400' : ''}
      {isRed && faceUp ? 'border-red-600' : 'border-gray-600'}"
-    style="width: {cardWidth}px; height: {cardHeight}px;"
-    on:click={handleClick}
-    on:keydown={handleKeydown}
-    role={selectable ? 'button' : 'img'}
-    tabindex={selectable ? 0 : -1}
-    aria-label={accessibleLabel}
+        style="width: {cardWidth}px; height: {cardHeight}px;"
+        on:click={handleClick}
+        on:keydown={handleKeydown}
+        role={selectable ? 'button' : 'img'}
+        tabindex={selectable ? 0 : -1}
+        aria-label={accessibleLabel}
 >
   {#if faceUp}
     <!-- Top left corner -->

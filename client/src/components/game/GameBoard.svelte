@@ -1,15 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-
-  // Import components
   import Card from '../cards/Card.svelte';
   import ScoreBoard from './ScoreBoard.svelte';
   import Controls from './Controls.svelte';
   import AIPlayer from '../players/AIPlayer.svelte';
   import HumanPlayer from '../players/HumanPlayer.svelte';
   import type { CardType, PlayerType, GameState } from '../../lib/types.ts';
-
-  // Import socket stores
   import {
     socket,
     gameState as storeGameState,
@@ -27,7 +23,6 @@
   export let humanReadyToPass: boolean = false;
   export let humanSelectedCards: CardType[] = [];
 
-  // Event dispatcher
   const dispatch = createEventDispatcher();
 
   // Use store data for online games, props for local games
@@ -37,30 +32,26 @@
           (currentGameState?.roundScores || {}) :
           roundScores;
 
-  // Local event handlers
+  // Event handlers
   function handlePlayCard(event) {
     const { player, card } = event.detail;
 
     if ($isOnlineGame) {
-      // Use socket store for online games
       socketPlayCard(card, (response) => {
         if (!response.success) {
           console.error('Failed to play card:', response.error);
         }
       });
     } else {
-      // Pass to parent for local games
       dispatch('playCard', event.detail);
     }
   }
 
   function handleHumanPassingSelection(event) {
-    // Always pass to parent - this is UI state
     dispatch('humanPassingSelection', event.detail);
   }
 
   function handleAIPassingSelection(event) {
-    // Only relevant for local games
     if (!$isOnlineGame) {
       dispatch('aiPassingSelection', event.detail);
     }
@@ -68,28 +59,24 @@
 
   function handlePassDone() {
     if ($isOnlineGame) {
-      // Use socket store for online games
       socketPassCards(humanSelectedCards, (response) => {
         if (!response.success) {
           console.error('Failed to pass cards:', response.error);
         }
       });
     } else {
-      // Pass to parent for local games
       dispatch('passDone');
     }
   }
 
   function handleRestartGame() {
     if ($isOnlineGame) {
-      // Use socket store for online games
       socketRestartGame((response) => {
         if (!response.success) {
           console.error('Failed to restart game:', response.error);
         }
       });
     } else {
-      // Pass to parent for local games
       dispatch('restartGame');
     }
   }
@@ -117,9 +104,7 @@
       const player = currentPlayers[i];
       return {
         ...player,
-        // For online games, other players should show face-down cards based on count
         hand: $isOnlineGame && i !== 0 ?
-                // Generate dummy cards for display (face-down)
                 Array.from({ length: getPlayerCardCount(i) }, () => ({ suit: 'spades', rank: 2 })) :
                 player.hand
       };
@@ -136,10 +121,9 @@
   function getPlayerCardCount(playerIndex: number): number {
     if (!$isOnlineGame || !currentGameState) return 0;
 
-    // Check if we have player card count data from server
     const serverPlayers = currentGameState.players;
     if (serverPlayers && serverPlayers[playerIndex]) {
-      return serverPlayers[playerIndex].cardCount || 13; // Default to 13 if not specified
+      return serverPlayers[playerIndex].cardCount || 13;
     }
 
     // Fallback: estimate based on tricks played
@@ -148,7 +132,6 @@
   }
 </script>
 
-<!-- Game Board Container -->
 <div class="relative h-screen flex flex-col">
   <div class="flex-1 relative overflow-hidden">
     <!-- Table Background -->
@@ -291,7 +274,7 @@
               </p>
               <button
                       class="px-4 py-2 {humanReadyToPass ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 cursor-not-allowed'}
-                       text-white rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                 text-white rounded-lg transition-all transform hover:scale-105 shadow-lg"
                       disabled={!humanReadyToPass}
                       on:click={handlePassDone}
               >
@@ -350,12 +333,10 @@
 </div>
 
 <style>
-  /* Background gradients */
   .bg-gradient-radial {
     background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
   }
 
-  /* Responsive adjustments */
   @media (max-width: 1024px) {
     .absolute.left-8,
     .absolute.right-8 {

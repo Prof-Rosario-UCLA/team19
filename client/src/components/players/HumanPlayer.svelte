@@ -14,34 +14,29 @@
 
   let selectedCardsForPassing: CardType[] = [];
 
-  // Handle card selection (for passing or playing)
+  // Handle card selection for passing or playing
   function handleCardSelect(event) {
     const card = event.detail;
 
     if (passingPhase) {
-      // Handle card selection for passing
       const cardIndex = selectedCardsForPassing.findIndex(c =>
               c.suit === card.suit && c.rank === card.rank
       );
 
       if (cardIndex === -1) {
-        // Add card if not already selected and less than 3 cards selected
         if (selectedCardsForPassing.length < 3) {
           selectedCardsForPassing = [...selectedCardsForPassing, card];
         }
       } else {
-        // Remove card if already selected
         selectedCardsForPassing = selectedCardsForPassing.filter((_, i) => i !== cardIndex);
       }
 
-      // Notify parent of selection change
       dispatch('cardsSelectedForPassing', {
         player: playerName,
         cards: selectedCardsForPassing
       });
 
     } else if (isActive) {
-      // Handle card play during game
       dispatch('playCard', {
         player: playerName,
         card: card
@@ -76,6 +71,7 @@
   <div class="player-info">
     <div class="player-name {isActive && !passingPhase ? 'active' : ''}">{playerName}</div>
     <div class="player-score">Score: {score}</div>
+
     {#if passingPhase}
       <div class="text-sm text-center">
         <div class="text-blue-300">
@@ -88,16 +84,18 @@
     {:else if isActive}
       <div class="text-green-300 text-xs">Your turn</div>
     {/if}
+
     {#if isOnlineGame}
       <div class="text-xs text-gray-400">🌐 Online</div>
     {/if}
   </div>
 
-  <!-- Your cards (face up, interactive) -->
   <div class="flex justify-center flex-wrap">
     {#each cards as card, i}
-      <div class="relative transition-all duration-200 hover:-translate-y-2"
-           style="margin-left: {i === 0 ? '0' : '-25px'}; z-index: {i};">
+      <div
+              class="relative transition-all duration-200 hover:-translate-y-2"
+              style="margin-left: {i === 0 ? '0' : '-25px'}; z-index: {i};"
+      >
         <Card
                 suit={card.suit}
                 rank={card.rank}
