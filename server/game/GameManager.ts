@@ -1,5 +1,6 @@
 import { Game, GamePhase } from './Game.js';
 import { Card } from '../../types/types.js';
+import { redisService } from '../services/redisService.js';
 
 interface GameRoom {
     game: Game;
@@ -16,7 +17,14 @@ export class GameManager {
         this.rooms = new Map();
     }
 
-    createRoom(roomId: string, name: string): GameRoom | null {
+    private async cacheGameState(roomId: string): Promise<void> {
+        const room = this.rooms.get(roomId);
+        if (room) {
+            await redisService.cacheGameState(roomId, room.game.getGameState());
+        }
+    }
+
+    async createRoom(roomId: string, name: string): Promise<GameRoom | null> {
         if (this.rooms.has(roomId)) {
             return null;
         }
@@ -30,10 +38,11 @@ export class GameManager {
         };
 
         this.rooms.set(roomId, room);
+        await this.cacheGameState(roomId);
         return room;
     }
 
-    joinRoom(roomId: string, socketId: string, playerName: string): boolean {
+    async joinRoom(roomId: string, socketId: string, playerName: string): Promise<boolean> {
         const room = this.rooms.get(roomId);
         if (!room) return false;
 
@@ -47,6 +56,12 @@ export class GameManager {
         const playerIds = Array.from(room.players.keys());
         const playerNames = [];
 
+
+        // Only create a new game instance when we have all 4 players
+        if (playerIds.length === 4) {
+            room.game = new Game(playerIds, playerNames, 100);
+            await this.cacheGameState(roomId);
+
         // Get names in correct order for current players
         for (let i = 0; i < room.players.size; i++) {
             playerNames[i] = room.playerNames.get(i) || `Player ${i + 1}`;
@@ -58,7 +73,7 @@ export class GameManager {
         return true;
     }
 
-    leaveRoom(socketId: string): void {
+    async leaveRoom(socketId: string): Promise<void> {
         for (const [roomId, room] of this.rooms.entries()) {
             if (room.players.has(socketId)) {
                 const playerIndex = room.players.get(socketId);
@@ -68,6 +83,9 @@ export class GameManager {
                 }
                 if (room.players.size === 0) {
                     this.rooms.delete(roomId);
+                    await redisService.deleteGameState(roomId);
+                } else {
+                    await this.cacheGameState(roomId);
                 }
                 break;
             }
@@ -110,7 +128,7 @@ export class GameManager {
     }
 
     // ... rest of the methods stay the same
-    playCard(roomId: string, socketId: string, card: Card): boolean {
+    async playCard(roomId: string, socketId: string, card: Card): Promise<boolean> {
         const room = this.rooms.get(roomId);
         if (!room) return false;
 
@@ -148,17 +166,25 @@ export class GameManager {
             return false;
         }
 
-        return room.game.playCard(playerIndex, card);
+        const success = room.game.playCard(playerIndex, card);
+        if (success) {
+            await this.cacheGameState(roomId);
+        }
+        return success;
     }
 
-    selectPassingCards(roomId: string, socketId: string, cards: Card[]): boolean {
+    async selectPassingCards(roomId: string, socketId: string, cards: Card[]): Promise<boolean> {
         const room = this.rooms.get(roomId);
         if (!room) return false;
 
         const playerIndex = room.players.get(socketId);
         if (playerIndex === undefined) return false;
 
-        return room.game.selectCardsForPassing(playerIndex, cards);
+        const success = room.game.selectCardsForPassing(playerIndex, cards);
+        if (success) {
+            await this.cacheGameState(roomId);
+        }
+        return success;
     }
 
     getPlayerIndex(roomId: string, socketId: string): number | undefined {
