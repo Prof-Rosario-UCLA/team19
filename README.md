@@ -72,11 +72,6 @@ To build the application for production:
 npm run build
 ```
 
-This will:
-1. Build the client (Svelte + Tailwind)
-2. Build the server (Express)
-3. Copy the client build to the server's public directory
-
 Note that a new production version is continually built automatically to GKE from the latest changes on main.
 
 ## Contributing
@@ -115,20 +110,77 @@ Our repository uses the following branch structure:
 
 6. **Nightly integration** runs at midnight (UTC), and if all tests pass, nightly is automatically merged into main
 
-### Unit Testing
+## Deployment Instructions
+We recommend deploying using GitHub Actions. Specifically, in the CI/CD pipeline you can manually trigger all three
+stages to run from whatever code is in nightly/main. 
 
-To use our testing infrastructure, run any of the following commands:
-- `npm run test` to run all tests, including unit, integration and infrastructure
-- `npm run test:unit` to run unit tests only
-- `npm run test:integration` to run integration tests only
-- `npm run test:coverage` to run all tests alongside nyc code coverage results
+If you need manual instructions, here is minimally how to deploy the app.
 
-### CI/CD Pipeline
+1. Checkout the `main` branch
+2. Build the project
+```bash
+npm install
+cd server && npm install && cd ..
+cd client && npm install && cd ..
+node --loader ts-node/esm build.ts
+```
+3. Obtain the necessary `.env` and put it in `/server` and source them
+```bash
+set -o allexport
+source server/.env
+set +o allexport
+```
+4. Build and push Docker image
+```angular2html 
+gcloud auth configure-docker
 
-Our project uses GitHub Actions for continuous integration and deployment:
+docker build --platform linux/amd64 \
+  --build-arg DB_HOST="$DB_HOST" \
+  --build-arg DB_NAME="$DB_NAME" \
+  --build-arg DB_USER="$DB_USER" \
+  --build-arg DB_PASSWORD="$DB_PASSWORD" \
+  --build-arg JWT_SECRET="$JWT_SECRET" \
+  --build-arg NODE_ENV="production" \
+  -t hearts-game-server .
 
-- **On pull requests to main or nightly**: Builds and runs unit tests on the code
-- **On nightly schedule**: Builds and runs both unit and integration tests. If successful, merges nightly into main
-- **On push to main**: Builds, tests, and deploys to production in GKE
+export GKE_PROJECT=cs144-25s-tahsin4466
+export GITHUB_SHA=$(git rev-parse HEAD)
 
-You can check the status of workflows in the "Actions" tab of the repository.
+docker tag hearts-game-server gcr.io/$GKE_PROJECT/hearts-game-server:$GITHUB_SHA
+docker tag hearts-game-server gcr.io/$GKE_PROJECT/hearts-game-server:latest
+docker push gcr.io/$GKE_PROJECT/hearts-game-server:$GITHUB_SHA
+docker push gcr.io/$GKE_PROJECT/hearts-game-server:latest
+```
+
+5. Deploy to GKE
+```bash
+kubectl delete secret hearts-app-secrets --ignore-not-found=true
+kubectl create secret generic hearts-app-secrets \
+  --from-env-file=server/.env
+kubectl apply -f kubernetes/deployment.yaml
+kubectl apply -f kubernetes/service.yaml
+kubectl apply -f kubernetes/ingress.yaml
+```
+
+6. Update the deployment
+```bash
+kubectl set image deployment/hearts-game-deployment \
+  hearts-game-server=gcr.io/$GKE_PROJECT/hearts-game-server:$GITHUB_SHA
+
+kubectl rollout status deployment/hearts-game-deployment
+```
+
+
+## REST API Endpoints
+1. `/auth/register` Registers a new user using internal auth
+2. `/auth/login` logs in a new user using internal auth
+3. `/leaderboard/` GET requests the leaderboard
+4. `/room/` Joins last authenticated/joined room
+5. `/room/room_code/` Gets room info identified by a specific code
+6. `/room/room_code/join` Joins a specific room identified by its code (logged in player)
+7. `/room/room_code/join-guest` Joins a specific room identified by its code (guest)
+8. `/room/room_code/leave` Leaves a room 
+9. `/room/room_code/end` Ends a game and deletes the room (if game finishes or all players leave lobby)
+10. `/user_id (GET)` Gets user info by ID
+11. `/user_id (PUT)` Updates a user by ID (unused)
+12. `/user_id/stats` Gets aggregated game stats (unused)
