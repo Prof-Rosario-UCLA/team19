@@ -189,7 +189,7 @@
     </div>
 
     <!-- West Player -->
-    <div class="absolute left-8 top-1/2 transform -translate-y-1/2 z-30">
+    <div class="absolute left-8 top-1/2 transform -translate-y-1/2 z-30 max-h-screen" style="top: clamp(80px, 35%, calc(100vh - 120px));">
       <AIPlayer
               playerName={displayPlayers[1]?.name || 'West'}
               cards={displayPlayers[1]?.hand || []}
@@ -205,7 +205,7 @@
     </div>
 
     <!-- East Player -->
-    <div class="absolute right-8 top-1/2 transform -translate-y-1/2 z-30">
+    <div class="absolute right-8 top-1/2 transform -translate-y-1/2 z-30 max-h-screen" style="top: clamp(80px, 35%, calc(100vh - 120px));">
       <AIPlayer
               playerName={displayPlayers[3]?.name || 'East'}
               cards={displayPlayers[3]?.hand || []}
@@ -285,7 +285,7 @@
           />
 
           {#if isPassingPhase}
-            <div class="mt-2 text-center">
+            <div class="mt-2 text-center max-[1023px]:hidden">
               <p class="text-green-200 text-sm mb-2">
                 Select 3 cards to pass {passingDirection}
               </p>
@@ -302,7 +302,7 @@
         </div>
 
         <!-- Game Status -->
-        <div class="order-1 lg:order-2 text-center">
+        <div class="order-1 lg:order-2 text-center max-[1023px]:hidden">
           <div class="bg-black bg-opacity-40 rounded-lg p-3">
             <div class="mb-3">
               <h1 class="text-xl font-bold text-white mb-1">♠ Hearts ♥</h1>
@@ -337,7 +337,7 @@
         </div>
 
         <!-- Scoreboard -->
-        <div class="order-3">
+        <div class="order-3 max-[1023px]:hidden">
           <ScoreBoard
                   {scores}
                   roundScores={currentRoundScores}
