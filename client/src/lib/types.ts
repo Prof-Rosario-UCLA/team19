@@ -11,6 +11,16 @@ export type PlayerType = {
   score: number;
 };
 
+export type RoomInfo = {
+  id: string;
+  name: string;
+  playerCount: number;
+  maxPlayers?: number;
+  status?: "waiting" | "playing" | "finished";
+  createdAt?: string;
+  host?: string;
+};
+
 export type GameState = {
   roundNumber: number;
   passingDirection: "left" | "right" | "across" | "none";
@@ -26,20 +36,3 @@ export type GameState = {
   gameStarted: boolean;
   gameOver: boolean;
 };
-
-// Event types for component communication
-export interface CardPlayEvent {
-  player: string;
-  card: CardType;
-}
-
-export interface PassingEvent {
-  player: string;
-  cards: CardType[];
-}
-
-export interface ReadyToPassEvent {
-  player: string;
-  ready: boolean;
-  selectedCards: CardType[];
-}

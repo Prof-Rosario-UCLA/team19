@@ -19,6 +19,7 @@ node_modules/
 */dist/
 */build/
 */public/build/
+/server/public
 
 # Environment variables
 .env

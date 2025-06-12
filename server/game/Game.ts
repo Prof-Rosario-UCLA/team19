@@ -62,15 +62,24 @@ export class Game {
             return;
         }
 
-        if (playerIds.length !== 4 || playerNames.length !== 4) {
-            throw new Error('Hearts requires exactly 4 players to start the game');
+        // MODIFIED: Allow 1-4 players during waiting phase
+        if (playerIds.length > 4 || playerNames.length > 4) {
+            throw new Error('Hearts allows maximum 4 players');
         }
 
+        // Initialize with current players
         this.gameState = initializeGame(playerIds, playerNames);
         this.passingState = null;
-        this.currentPhase = GamePhase.INITIALIZING;
-        this.currentPlayerIndex = -1;
-        this.startNewHand();
+
+        // Only start the game when we have exactly 4 players
+        if (playerIds.length === 4) {
+            this.currentPhase = GamePhase.INITIALIZING;
+            this.currentPlayerIndex = -1;
+            this.startNewHand();
+        } else {
+            this.currentPhase = GamePhase.WAITING_FOR_PLAYERS;
+            this.currentPlayerIndex = -1;
+        }
     }
 
     // Start a new hand

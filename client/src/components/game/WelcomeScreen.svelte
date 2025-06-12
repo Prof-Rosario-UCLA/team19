@@ -1,10 +1,26 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import { io, Socket } from 'socket.io-client';
+  import { createEventDispatcher } from 'svelte';
   import Leaderboard from '../game/Leaderboard.svelte';
   import WaitingRoom from './WaitingRoom.svelte';
 
-  export let currentUser: any = null; // Now expects user object
+  // Import socket stores
+  import {
+    socket,
+    connectionStatus,
+    rooms,
+    currentRoomId,
+    currentRoomName,
+    inWaitingRoom,
+    error,
+    selfPlayerName,
+    connectSocket,
+    disconnectSocket,
+    createRoom,
+    joinRoom,
+    getRooms
+  } from '../../lib/stores/socket';
+
+  export let currentUser: any = null;
   export let authToken: string | null = null;
   export let isLoggedIn: boolean = false;
 
@@ -13,21 +29,13 @@
   let gameCode = '';
   let showJoinInput = false;
   let showCreateInput = false;
+  let showGameRules = false;
   let roomName = '';
   let playerName = currentUser?.username || '';
-  let socket: Socket | null = null;
-  let connectionStatus = 'Disconnected';
-  let availableRooms: any[] = [];
   let isConnecting = false;
   let showRoomsList = false;
 
-  // Waiting room state
-  let inWaitingRoom = false;
-  let currentRoomId = '';
-  let currentRoomName = '';
-
-  // Connection and room management
-  let connectionError = '';
+  // Local error states (separate from socket store errors)
   let roomError = '';
 
   // Helper function to make authenticated API calls
@@ -51,54 +59,14 @@
     dispatch('startGame');
   }
 
-  function connectToServer() {
-    if (socket?.connected) return;
-
+  function handleConnect() {
     isConnecting = true;
-    connectionError = '';
-
-    socket = io(window.location.origin);
-
-    socket.on('connect', () => {
-      connectionStatus = 'Connected';
-      isConnecting = false;
-      console.log('Connected to server');
-      getRooms();
-    });
-
-    socket.on('disconnect', () => {
-      connectionStatus = 'Disconnected';
-      isConnecting = false;
-      console.log('Disconnected from server');
-    });
-
-    socket.on('connect_error', (error) => {
-      connectionStatus = 'Connection Failed';
-      isConnecting = false;
-      connectionError = 'Could not connect to server. Make sure the server is running on localhost:3000';
-      console.error('Connection error:', error);
-    });
-
-    socket.on('rooms_updated', (rooms) => {
-      console.log('Rooms updated:', rooms);
-      availableRooms = rooms;
-    });
-
-    socket.on('game_state_updated', (data) => {
-      console.log('Game state updated:', data);
-      dispatch('joinedOnlineGame', {
-        gameState: data.gameState,
-        roomId: gameCode
-      });
-    });
+    roomError = '';
+    connectSocket();
   }
 
-  function disconnectFromServer() {
-    if (socket) {
-      socket.disconnect();
-      socket = null;
-      availableRooms = [];
-    }
+  function handleDisconnect() {
+    disconnectSocket();
   }
 
   async function createOnlineRoom() {
@@ -122,23 +90,18 @@
         if (data.success) {
           console.log('Room created via REST API:', data.data);
           gameCode = data.data.room_code;
-          currentRoomName = roomName.trim();
 
           // Now tell socket to set up the existing room
-          if (socket?.connected) {
-            socket.emit('create_room', {
-              name: roomName.trim(),
-              hostUser: {
-                user_id: currentUser.user_id,
-                username: currentUser.username
-              },
-              existingRoomCode: data.data.room_code  // Pass the existing room code
+          if ($socket?.connected) {
+            createRoom(roomName.trim(), {
+              user_id: currentUser.user_id,
+              username: currentUser.username
             }, (response) => {
               if (response.success) {
                 console.log('Socket room setup complete for existing room');
+                gameCode = response.roomId;
                 joinOnlineRoom();
               } else {
-                console.error('Failed to setup socket room:', response.error);
                 roomError = `Socket setup failed: ${response.error}`;
               }
             });
@@ -153,28 +116,27 @@
         roomError = 'Failed to create room. Please try again.';
       }
     } else {
-      // Guest user - socket only (this should work)
-      if (!socket?.connected) {
+      // Guest user - socket only
+      if (!$socket?.connected) {
         roomError = 'Not connected to server';
         return;
       }
 
-      socket.emit('create_room', { name: roomName.trim() }, (response) => {
+      createRoom(roomName.trim(), undefined, (response) => {
+        console.log('Room created successfully:', response);
         if (response.success) {
-          console.log(`Room created successfully. Room ID: ${response.roomId}`);
           gameCode = response.roomId;
-          currentRoomName = roomName.trim();
+          // Auto-join the room we just created
           joinOnlineRoom();
         } else {
           roomError = `Failed to create room: ${response.error}`;
-          console.error('Failed to create room:', response.error);
         }
       });
     }
   }
 
   function joinOnlineRoom() {
-    if (!socket?.connected) {
+    if (!$socket?.connected) {
       roomError = 'Not connected to server';
       return;
     }
@@ -196,25 +158,16 @@
     console.log('Joining room:', roomIdToJoin, 'as:', playerNameToUse);
 
     // Pass user info if logged in
-    const joinData = {
-      roomId: roomIdToJoin,
-      playerName: playerNameToUse,
-      ...(isLoggedIn && currentUser ? {
-        user: {
-          user_id: currentUser.user_id,
-          username: currentUser.username
-        }
-      } : {})
-    };
+    const user = isLoggedIn && currentUser ? {
+      user_id: currentUser.user_id,
+      username: currentUser.username
+    } : undefined;
 
-    socket.emit('join_room', joinData, (response) => {
-      console.log('Join room response:', response);
-
+    joinRoom(roomIdToJoin, playerNameToUse, user, (response) => {
+      console.log('Join room callback response:', response);
       if (response && response.success) {
         console.log(`✅ Joined room ${roomIdToJoin} successfully`);
-        currentRoomId = roomIdToJoin;
-        currentRoomName = roomName || `Room ${roomIdToJoin}`;
-        inWaitingRoom = true;
+        // Room name will be set by the store
       } else {
         const errorMsg = response ? response.error : 'No response from server';
         roomError = `Failed to join room: ${errorMsg}`;
@@ -223,13 +176,10 @@
     });
   }
 
-  function getRooms() {
-    if (!socket?.connected) return;
-
-    socket.emit('get_rooms', (rooms) => {
-      console.log('Retrieved rooms:', rooms);
-      availableRooms = rooms;
-    });
+  function handleGetRooms() {
+    if ($socket?.connected) {
+      getRooms();
+    }
   }
 
   function directJoinRoom(room: any) {
@@ -239,33 +189,11 @@
     }
 
     gameCode = room.id;
-    currentRoomName = room.name;
     joinOnlineRoom();
-  }
-
-  // Waiting room event handlers
-  function handleLeaveRoom() {
-    inWaitingRoom = false;
-    currentRoomId = '';
-    currentRoomName = '';
-    gameCode = '';
-  }
-
-  function handleGameReady(event) {
-    console.log('Game is ready to start:', event.detail);
-  }
-
-  function handleGameStarted(event) {
-    console.log('Game started:', event.detail);
-    dispatch('joinedOnlineGame', {
-      gameState: event.detail.gameState,
-      roomId: event.detail.roomId
-    });
   }
 
   function joinRoomFromList(room: any) {
     gameCode = room.id;
-    currentRoomName = room.name;
     if (!playerName.trim()) {
       playerName = currentUser?.username || `Player${Math.floor(Math.random() * 1000)}`;
     }
@@ -294,9 +222,13 @@
 
   function toggleRoomsList() {
     showRoomsList = !showRoomsList;
-    if (showRoomsList && socket?.connected) {
-      getRooms();
+    if (showRoomsList && $socket?.connected) {
+      handleGetRooms();
     }
+  }
+
+  function toggleGameRules() {
+    showGameRules = !showGameRules;
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -307,10 +239,15 @@
         createOnlineRoom();
       }
     }
+
+    // Close game rules popup with Escape key
+    if (event.key === 'Escape' && showGameRules) {
+      showGameRules = false;
+    }
   }
 
   function logout() {
-    disconnectFromServer();
+    handleDisconnect();
     dispatch('logout');
   }
 
@@ -319,13 +256,13 @@
     playerName = currentUser.username;
   }
 
-  onMount(() => {
-    // Auto-connect if user wants to play online
-  });
+  // Update connecting state based on store
+  $: isConnecting = $connectionStatus === 'connecting';
 
-  onDestroy(() => {
-    disconnectFromServer();
-  });
+  // Update selfPlayerName in store when playerName changes
+  $: if (playerName) {
+    selfPlayerName.set(playerName);
+  }
 
   // Game rules data
   const gameRules = {
@@ -344,25 +281,18 @@
   };
 </script>
 
-<div class="min-h-screen relative">
-  {#if inWaitingRoom}
+<div class="min-h-screen relative overflow-hidden">
+  {#if $inWaitingRoom}
     <!-- Waiting Room Component -->
     <WaitingRoom
-            {socket}
-            roomId={currentRoomId}
-            roomName={currentRoomName}
-            {playerName}
             {currentUser}
             {authToken}
             {isLoggedIn}
-            on:leaveRoom={handleLeaveRoom}
-            on:gameReady={handleGameReady}
-            on:gameStarted={handleGameStarted}
     />
   {:else}
     <!-- Regular Welcome Screen Content -->
-    <!-- Leaderboard in top right -->
-    <div class="absolute top-4 right-4 z-10">
+    <!-- Leaderboard in top right (desktop) or below main card (mobile) -->
+    <div class="absolute top-4 right-4 z-10 hidden min-[800px]:block">
       <Leaderboard {currentUser} {authToken} />
     </div>
 
@@ -388,11 +318,11 @@
     <!-- Connection Status (top center) -->
     <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
       <div class="bg-black bg-opacity-40 rounded-lg p-2 text-white text-sm flex items-center gap-2">
-        <div class="w-2 h-2 rounded-full {connectionStatus === 'Connected' ? 'bg-green-500' : 'bg-red-500'}"></div>
-        <span>{connectionStatus}</span>
-        {#if !socket?.connected && !isConnecting}
+        <div class="w-2 h-2 rounded-full {$connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}"></div>
+        <span>{$connectionStatus.charAt(0).toUpperCase() + $connectionStatus.slice(1)}</span>
+        {#if !$socket?.connected && !isConnecting}
           <button
-                  on:click={connectToServer}
+                  on:click={handleConnect}
                   class="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
           >
             Connect
@@ -401,23 +331,23 @@
       </div>
     </div>
 
-    <div class="min-h-screen flex items-center justify-center p-4">
-      <div class="max-w-2xl mx-auto">
-        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
+    <div class="h-screen flex items-center justify-center p-4 overflow-y-auto">
+      <div class="max-w-2xl mx-auto w-full min-[800px]:pr-10">
+        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-2xl p-6">
 
           <!-- Header Section -->
-          <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">♠ Hearts ♥</h1>
-            <p class="text-gray-600 text-lg">The Classic Card Game</p>
+          <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">♠ Hearts ♥</h1>
+            <p class="text-gray-600">The Classic Card Game</p>
             {#if currentUser}
-              <p class="text-green-600 text-sm mt-2">Logged in as {currentUser.username}</p>
+              <p class="text-green-600 text-sm mt-1">Logged in as {currentUser.username}</p>
             {/if}
           </div>
 
           <!-- Error Messages -->
-          {#if connectionError}
+          {#if $error}
             <div class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-              {connectionError}
+              {$error}
             </div>
           {/if}
 
@@ -428,11 +358,11 @@
           {/if}
 
           <!-- Game Options Section -->
-          <div class="mb-8">
-            <h3 class="text-xl font-semibold mb-4 text-gray-800 text-center">Game Options:</h3>
+          <div class="mb-6">
+            <h3 class="text-lg font-semibold mb-4 text-gray-800 text-center">Game Options:</h3>
 
             <!-- Player Name Input -->
-            <div class="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <div class="mb-4 bg-gray-50 p-3 rounded-xl border border-gray-200">
               <label for="globalPlayerName" class="block text-sm font-medium text-gray-700 mb-2">
                 Your Name:
               </label>
@@ -450,10 +380,10 @@
               </p>
             </div>
 
-            <div class="grid gap-4 mb-6">
+            <div class="grid gap-3 mb-4">
               <!-- Local Game Button -->
               <button
-                      class="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                      class="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                       on:click={startLocalGame}
               >
                 🎮 Play Local Game
@@ -463,14 +393,12 @@
               <div class="space-y-3">
                 <!-- Create Online Room -->
                 <button
-                        class="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                        class="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                         on:click={toggleCreateInput}
-                        disabled={!socket?.connected}
+                        disabled={!$socket?.connected}
                 >
                   🌐 Create Online Room
-                  {#if isLoggedIn}
-                    <span class="text-sm font-normal">(Connect first)</span>
-                  {:else if !socket?.connected}
+                  {#if !$socket?.connected}
                     <span class="text-sm font-normal">(Connect first)</span>
                   {/if}
                 </button>
@@ -505,12 +433,12 @@
 
                 <!-- Join Online Room -->
                 <button
-                        class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                        class="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                         on:click={toggleJoinInput}
-                        disabled={!socket?.connected}
+                        disabled={!$socket?.connected}
                 >
                   🔗 Join Online Room
-                  {#if !socket?.connected}
+                  {#if !$socket?.connected}
                     <span class="text-sm font-normal">(Connect first)</span>
                   {/if}
                 </button>
@@ -534,7 +462,7 @@
                       </div>
                       <button
                               on:click={joinOnlineRoom}
-                              disabled={!gameCode.trim() || !playerName.trim() || !socket?.connected}
+                              disabled={!gameCode.trim() || !playerName.trim() || !$socket?.connected}
                               class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
                       >
                         Join Room
@@ -544,12 +472,12 @@
                 {/if}
 
                 <!-- Browse Available Rooms -->
-                {#if socket?.connected}
+                {#if $socket?.connected}
                   <button
-                          class="w-full px-6 py-4 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 text-lg font-semibold"
+                          class="w-full px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl shadow-lg transition-all transform hover:scale-105 font-semibold"
                           on:click={toggleRoomsList}
                   >
-                    🏠 Browse Available Rooms ({availableRooms.length})
+                    🏠 Browse Available Rooms ({$rooms.length})
                   </button>
 
                   {#if showRoomsList}
@@ -557,18 +485,18 @@
                       <div class="flex justify-between items-center mb-3">
                         <h4 class="font-medium text-gray-700">Available Rooms:</h4>
                         <button
-                                on:click={getRooms}
+                                on:click={handleGetRooms}
                                 class="text-sm bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded"
                         >
                           Refresh
                         </button>
                       </div>
 
-                      {#if availableRooms.length === 0}
+                      {#if $rooms.length === 0}
                         <p class="text-gray-500 text-center py-4">No rooms available. Create one!</p>
                       {:else}
                         <div class="space-y-2 max-h-40 overflow-y-auto">
-                          {#each availableRooms as room}
+                          {#each $rooms as room}
                             <div class="flex justify-between items-center p-3 bg-white rounded-lg border">
                               <div>
                                 <div class="font-medium text-gray-800">{room.name}</div>
@@ -609,49 +537,115 @@
             </div>
           </div>
 
-          <!-- Rules Section -->
-          <div class="mb-8">
-            <h3 class="text-xl font-semibold mb-4 text-gray-800">Game Rules:</h3>
-            <div class="grid md:grid-cols-2 gap-4 text-sm text-gray-700">
-              <!-- Basic Rules -->
-              <div class="space-y-2">
-                {#each gameRules.basic as rule}
-                  <div class="flex items-start gap-2">
-                    <span class="text-green-600 font-bold">•</span>
-                    <span>{rule}</span>
-                  </div>
-                {/each}
-              </div>
+          <!-- Game Rules Button and Footer Info -->
+          <div class="text-center">
+            <button
+                    on:click={toggleGameRules}
+                    class="mb-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+            >
+              📖 Game Rules
+            </button>
 
-              <!-- Scoring Rules -->
-              <div class="space-y-2">
-                {#each gameRules.scoring as rule}
-                  <div class="flex items-start gap-2">
-                    <span class="text-red-600 font-bold">•</span>
-                    <span>{rule}</span>
-                  </div>
-                {/each}
-              </div>
+            <div class="text-xs text-gray-500">
+              <p>Local games work offline • Online games connect you with other players</p>
+              {#if !currentUser}
+                <p class="mt-1">
+                  <button
+                          on:click={() => dispatch('showLogin')}
+                          class="text-green-600 hover:text-green-700 font-medium"
+                  >
+                    Create an account or log in
+                  </button>
+                  to save your stats and compete on the leaderboard!
+                </p>
+              {/if}
             </div>
           </div>
+        </div>
 
-          <!-- Footer Info -->
-          <div class="text-center text-xs text-gray-500">
-            <p>Local games work offline • Online games connect you with other players</p>
-            {#if !currentUser}
-              <p class="mt-1">
-                <button
-                        on:click={() => dispatch('showLogin')}
-                        class="text-green-600 hover:text-green-700 font-medium"
-                >
-                  Create an account or log in
-                </button>
-                to save your stats and compete on the leaderboard!
-              </p>
-            {/if}
-          </div>
+        <!-- Mobile Leaderboard (below main card on smaller screens) -->
+        <div class="min-[800px]:hidden max-[419px]:hidden w-full max-w-md mx-auto">
+          <Leaderboard {currentUser} {authToken} />
         </div>
       </div>
     </div>
+
+    <!-- Game Rules Modal Popup -->
+    {#if showGameRules}
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+          <div class="p-6">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-2xl font-bold text-gray-800">📖 Hearts Game Rules</h3>
+              <button
+                      on:click={toggleGameRules}
+                      class="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <!-- Rules Content -->
+            <div class="grid md:grid-cols-2 gap-6 text-sm text-gray-700">
+              <!-- Basic Rules -->
+              <div>
+                <h4 class="text-lg font-semibold text-gray-800 mb-3">Basic Rules</h4>
+                <div class="space-y-2">
+                  {#each gameRules.basic as rule}
+                    <div class="flex items-start gap-2">
+                      <span class="text-green-600 font-bold">•</span>
+                      <span>{rule}</span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Scoring Rules -->
+              <div>
+                <h4 class="text-lg font-semibold text-gray-800 mb-3">Scoring</h4>
+                <div class="space-y-2">
+                  {#each gameRules.scoring as rule}
+                    <div class="flex items-start gap-2">
+                      <span class="text-red-600 font-bold">•</span>
+                      <span>{rule}</span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            </div>
+
+            <!-- Additional Rules Section -->
+            <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+              <h4 class="text-lg font-semibold text-gray-800 mb-3">Special Rules</h4>
+              <div class="space-y-2 text-sm text-gray-700">
+                <div class="flex items-start gap-2">
+                  <span class="text-blue-600 font-bold">•</span>
+                  <span>No hearts or Queen of Spades can be played on the first trick</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-blue-600 font-bold">•</span>
+                  <span>Hearts cannot be led until hearts have been "broken" (played in a trick)</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-blue-600 font-bold">•</span>
+                  <span>"Shooting the moon" - Taking all hearts and Queen of Spades gives other players 26 points</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Close Button -->
+            <div class="mt-6 text-center">
+              <button
+                      on:click={toggleGameRules}
+                      class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
   {/if}
 </div>

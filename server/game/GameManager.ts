@@ -5,6 +5,7 @@ import { redisService } from '../services/redisService.js';
 interface GameRoom {
     game: Game;
     players: Map<string, number>; // socketId -> playerIndex
+    playerNames: Map<number, string>; // playerIndex -> playerName
     roomId: string;
     name: string;
 }
@@ -28,10 +29,10 @@ export class GameManager {
             return null;
         }
 
-        // Initialize room, game will be properly initialized after 4 players join
         const room: GameRoom = {
             game: new Game([], [], 100),
             players: new Map(),
+            playerNames: new Map(), // Track player names
             roomId,
             name
         };
@@ -45,31 +46,41 @@ export class GameManager {
         const room = this.rooms.get(roomId);
         if (!room) return false;
 
-        // Check if room is full
         if (room.players.size >= 4) return false;
 
-        // Get next available player index
         const playerIndex = room.players.size;
         room.players.set(socketId, playerIndex);
+        room.playerNames.set(playerIndex, playerName);
 
-        // Update game state with new player
+        // ALWAYS update the game with current players
         const playerIds = Array.from(room.players.keys());
-        const playerNames = Array.from(room.players.entries())
-            .sort((a, b) => a[1] - b[1])
-            .map((_, i) => i === playerIndex ? playerName : `Player ${i + 1}`);
+        const playerNames = [];
+
 
         // Only create a new game instance when we have all 4 players
         if (playerIds.length === 4) {
             room.game = new Game(playerIds, playerNames, 100);
             await this.cacheGameState(roomId);
+
+        // Get names in correct order for current players
+        for (let i = 0; i < room.players.size; i++) {
+            playerNames[i] = room.playerNames.get(i) || `Player ${i + 1}`;
         }
+
+        // Update game with current player list (even if less than 4)
+        room.game = new Game(playerIds, playerNames, 100);
+
         return true;
     }
 
     async leaveRoom(socketId: string): Promise<void> {
         for (const [roomId, room] of this.rooms.entries()) {
             if (room.players.has(socketId)) {
+                const playerIndex = room.players.get(socketId);
                 room.players.delete(socketId);
+                if (playerIndex !== undefined) {
+                    room.playerNames.delete(playerIndex);
+                }
                 if (room.players.size === 0) {
                     this.rooms.delete(roomId);
                     await redisService.deleteGameState(roomId);
@@ -93,6 +104,30 @@ export class GameManager {
         return this.rooms.get(roomId);
     }
 
+    // NEW METHOD: Get player name by socket ID
+    getPlayerName(roomId: string, socketId: string): string | undefined {
+        const room = this.rooms.get(roomId);
+        if (!room) return undefined;
+
+        const playerIndex = room.players.get(socketId);
+        if (playerIndex === undefined) return undefined;
+
+        return room.playerNames.get(playerIndex);
+    }
+
+    // NEW METHOD: Get all player names in order
+    getAllPlayerNames(roomId: string): string[] {
+        const room = this.rooms.get(roomId);
+        if (!room) return [];
+
+        const names = [];
+        for (let i = 0; i < room.players.size; i++) {
+            names[i] = room.playerNames.get(i) || `Player ${i + 1}`;
+        }
+        return names;
+    }
+
+    // ... rest of the methods stay the same
     async playCard(roomId: string, socketId: string, card: Card): Promise<boolean> {
         const room = this.rooms.get(roomId);
         if (!room) return false;
@@ -100,7 +135,6 @@ export class GameManager {
         const playerIndex = room.players.get(socketId);
         if (playerIndex === undefined) return false;
 
-        // Log the play attempt
         console.log('GameManager playCard:', {
             roomId,
             playerIndex,
@@ -110,8 +144,7 @@ export class GameManager {
             isFirstTrick: room.game.getGameState().isFirstTrick
         });
 
-        // Validate it's the correct phase and player's turn
-        if (room.game.getCurrentPhase() !== 'PLAYING' || 
+        if (room.game.getCurrentPhase() !== 'PLAYING' ||
             playerIndex !== room.game.getCurrentPlayerIndex()) {
             console.log('Invalid phase or turn:', {
                 phase: room.game.getCurrentPhase(),
@@ -121,11 +154,9 @@ export class GameManager {
             return false;
         }
 
-        // Get valid moves for the player
         const validMoves = room.game.getValidMoves(playerIndex);
         console.log('Valid moves for player:', validMoves);
 
-        // Check if the card is in valid moves
         const isValidMove = validMoves.some(
             validCard => validCard.suit === card.suit && validCard.rank === card.rank
         );
@@ -159,4 +190,4 @@ export class GameManager {
     getPlayerIndex(roomId: string, socketId: string): number | undefined {
         return this.rooms.get(roomId)?.players.get(socketId);
     }
-} 
+}
