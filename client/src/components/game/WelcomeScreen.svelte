@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import Leaderboard from '../game/Leaderboard.svelte';
   import WaitingRoom from './WaitingRoom.svelte';
 
@@ -38,6 +38,20 @@
   // Local error states (separate from socket store errors)
   let roomError = '';
 
+  let canvas: HTMLCanvasElement;
+  let ctx: CanvasRenderingContext2D;
+  let animationId: number;
+  let floatingCards: Array<{
+    x: number;
+    y: number;
+    suit: string;
+    rank: string;
+    rotation: number;
+    speed: number;
+    rotationSpeed: number;
+    opacity: number;
+  }> = [];
+
   // Helper function to make authenticated API calls
   function makeAuthenticatedRequest(url: string, options: any = {}) {
     const headers = {
@@ -55,6 +69,83 @@
     });
   }
 
+  // Canvas animation functions
+  function initCanvas() {
+    if (!canvas) return;
+
+    ctx = canvas.getContext('2d');
+    resizeCanvas();
+
+    // Create floating cards
+    const suits = ['♠', '♥', '♦', '♣'];
+    const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7'];
+
+    for (let i = 0; i < 12; i++) {
+      floatingCards.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        suit: suits[Math.floor(Math.random() * suits.length)],
+        rank: ranks[Math.floor(Math.random() * ranks.length)],
+        rotation: Math.random() * Math.PI * 2,
+        speed: 0.2 + Math.random() * 0.5,
+        rotationSpeed: (Math.random() - 0.5) * 0.02,
+        opacity: 0.1 + Math.random() * 0.15
+      });
+    }
+
+    animate();
+  }
+  function resizeCanvas() {
+    if (!canvas) return;
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  function animate() {
+    if (!ctx || !canvas) return;
+
+    // Clear canvas with transparent background
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Update and draw floating cards
+    floatingCards.forEach(card => {
+      // Update position
+      card.y -= card.speed;
+      card.rotation += card.rotationSpeed;
+
+      // Reset card when it goes off screen
+      if (card.y < -100) {
+        card.y = canvas.height + 100;
+        card.x = Math.random() * canvas.width;
+      }
+
+      // Draw card
+      ctx.save();
+      ctx.translate(card.x, card.y);
+      ctx.rotate(card.rotation);
+      ctx.globalAlpha = card.opacity;
+
+      // Card background
+      ctx.fillStyle = 'white';
+      ctx.fillRect(-20, -30, 40, 60);
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-20, -30, 40, 60);
+
+      // Card content
+      ctx.fillStyle = (card.suit === '♥' || card.suit === '♦') ? '#dc2626' : '#1f2937';
+      ctx.font = 'bold 12px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(card.rank, 0, -10);
+      ctx.font = 'bold 16px serif';
+      ctx.fillText(card.suit, 0, 10);
+
+      ctx.restore();
+    });
+
+    animationId = requestAnimationFrame(animate);
+  }
+
   function startLocalGame() {
     dispatch('startGame');
   }
@@ -68,6 +159,25 @@
   function handleDisconnect() {
     disconnectSocket();
   }
+
+  onMount(() => {
+    initCanvas();
+
+    const handleResize = () => {
+      resizeCanvas();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  });
+
+  onDestroy(() => {
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+    }
+  });
 
   async function createOnlineRoom() {
     if (!roomName.trim()) {
@@ -282,6 +392,11 @@
 </script>
 
 <div class="min-h-screen relative overflow-hidden">
+  <canvas
+    bind:this={canvas}
+    class="fixed inset-0 w-full h-full pointer-events-none, z-0"
+    style="background:transparent"
+    ></canvas>
   {#if $inWaitingRoom}
     <!-- Waiting Room Component -->
     <WaitingRoom
