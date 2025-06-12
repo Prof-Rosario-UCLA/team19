@@ -23,32 +23,23 @@ ENV PORT=$PORT
 # Set working directory
 WORKDIR /app
 
-# Copy server package.json and install dependencies
+# Copy server package.json and install server dependencies
 COPY server/package*.json ./server/
 WORKDIR /app/server
 RUN npm install --only=production
 
-# Go back to root and copy EXACTLY what we built
+# Go back to root and copy pre-built files
 WORKDIR /app
 
-# Copy server build files (the ACTUAL structure includes server/dist/server/)
+# Copy the pre-built server files
 COPY server/dist/ ./server/dist/
 
-# Copy client build files (built Svelte app)
+# Copy the pre-built client files
 COPY server/public/ ./server/public/
 
-# Verify and fix the structure
-RUN echo "=== DOCKER BUILD VERIFICATION ===" && \
-    echo "server/dist contents:" && \
-    ls -la server/dist/ && \
-    echo "Looking in server/dist/server/:" && \
-    ls -la server/dist/server/ && \
-    echo "Moving files to correct location..." && \
-    mv server/dist/server/* server/dist/ && \
-    mv server/dist/types/* server/dist/ && \
-    rmdir server/dist/server server/dist/types && \
-    echo "Fixed structure:" && \
-    ls -la server/dist/
+# Clean up and cache clean
+WORKDIR /app/server
+RUN npm cache clean --force
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -63,6 +54,10 @@ WORKDIR /app/server
 
 # Expose port 3000
 EXPOSE 3000
+
+# Health check for GKE
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 # Start the application
 CMD ["npm", "start"]

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "node --loader ts-node/esm build.js",
+    "build": "node --loader ts-node/esm build.ts",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
     "start": "cd server && npm start",
